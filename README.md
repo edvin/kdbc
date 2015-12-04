@@ -65,9 +65,9 @@ shortcuts are available for `insert` and `delete` as well.
 Let's delete customer number 1:
 
 ```kotlin
-        db.delete("DELETE FROM customers WHERE id = :id") {
-            param("id", 1)
-        }
+	db.delete("DELETE FROM customers WHERE id = :id") {
+		param("id", 1)
+	}
 ```
 
 If you want to set a value that might be null or you want to explicitly set the type parameter from `java.sql.Types`,
@@ -79,5 +79,7 @@ If you want to set a value that might be null or you want to explicitly set the 
 		...
 	}
 ```
+
+The `param` function can handle most data types, and it's easy to extend it with your custom types and mappings.
 
 That really is all. Every aspect of the JDBC API is still available to you right inside the DSL.
