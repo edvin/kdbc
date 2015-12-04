@@ -61,3 +61,23 @@ Let's update customer number 2 with a new name:
     
 The above example is a short hand form of `db.query`, setting parameters and then calling `update`. Similar
 shortcuts are available for `insert` and `delete` as well.
+
+Let's delete customer number 1:
+
+```kotlin
+        db.delete("DELETE FROM customers WHERE id = :id") {
+            param("id", 1)
+        }
+```
+
+If you want to set a value that might be null or you want to explicitly set the type parameter from `java.sql.Types`,
+ you add the type as the third parameter to `param`:
+ 
+```kotlin
+	db.insert("INSERT INTO customers VALUES (:id, :name)" {
+		param("id", 4, Types.INTEGER)
+		...
+	}
+```
+
+That really is all. Every aspect of the JDBC API is still available to you right inside the DSL.
