@@ -28,13 +28,17 @@ class QueryTests {
         db.close()
     }
 
-    @Test
-    fun queryTest() {
-        val john = db.query("SELECT * FROM customers WHERE id = :id") {
-            param("id", 1)
+    fun getCustomerById(id: Int): Customer = with(db) {
+        query("SELECT * FROM customers WHERE id = :id") {
+            param("id", id)
         } single {
             Customer(getInt("id"), getString("name"))
         }
+    }
+
+    @Test
+    fun queryTest() {
+        val john = getCustomerById(1)
 
         assertEquals(1, john.id)
         assertEquals("John", john.name)
@@ -49,11 +53,7 @@ class QueryTests {
 
         assertEquals(1, updateCount)
 
-        val updatedName = db.query("SELECT name FROM customers WHERE id = :id") {
-            param("id", 1)
-        } single {
-            getString("name")
-        }
+        val updatedName = getCustomerById(1).name
 
         assertEquals("Johnnie", updatedName)
     }
@@ -65,11 +65,7 @@ class QueryTests {
             param("name", "Jane")
         }
 
-        val jane = db.query("SELECT * FROM customers WHERE id = :id") {
-            param("id", 3)
-        } single {
-            Customer(getInt("id"), getString("name"))
-        }
+        val jane = getCustomerById(3)
 
         assertEquals("Customer(id=3, name=Jane)", jane.toString())
     }
@@ -80,10 +76,12 @@ class QueryTests {
             param("id", 1)
         }
 
-        db.query("SELECT * FROM customers WHERE id = :id") {
-            param("id", 1)
-        } single {
-            Customer(getInt("id"), getString("name"))
-        }
+        getCustomerById(1)
+    }
+
+    @Test
+    fun resultSetTest() {
+        val rs = db.query("SELECT * FROM customers").executeQuery()
+        while (rs.next()) println(rs.getString("name"))
     }
 }
