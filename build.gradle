@@ -1,5 +1,6 @@
 group 'no.tornado'
 version '1.0-SNAPSHOT'
+description 'Simple, lightweight and elegant DSL for SQL Queries in Kotlin'
 
 buildscript {
     repositories {
@@ -17,6 +18,8 @@ repositories {
 }
 
 dependencies {
-    compile 'org.jetbrains.kotlin:kotlin-stdlib:1.0.0-beta-3594'
-    testCompile 'junit:junit:4.+', 'mysql:mysql-connector-java:5.1.37', 'com.h2database:h2:1.4.190'
+    compile     'org.jetbrains.kotlin:kotlin-stdlib:1.0.0-beta-3594'
+    testCompile 'junit:junit:4.+',
+                'mysql:mysql-connector-java:5.1.37',
+                'com.h2database:h2:1.4.190'
 }

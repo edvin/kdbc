@@ -19,12 +19,14 @@ import kotlin.text.Regex
  *     }
  *
  */
-fun Connection.query(sql: String, op: ParameterizedStatement.() -> Unit): ParameterizedStatement {
+fun Connection.query(sql: String, op: ParameterizedStatement.() -> Unit = {}): ParameterizedStatement {
     val params = HashMap<String, ArrayList<Int>>()
 
     var query = StringBuffer()
 
     val matcher = Regex(":\\w+").toPattern().matcher(sql)
+
+    var paramPos = 1
 
     while (matcher.find()) {
         val key = matcher.group().substring(1)
@@ -33,19 +35,28 @@ fun Connection.query(sql: String, op: ParameterizedStatement.() -> Unit): Parame
             throw SQLException("Repeated parameter $key")
 
         var paramsForKey = params.computeIfAbsent(key, { ArrayList() })
-        paramsForKey.add(params.size + 1)
+        paramsForKey.add(paramPos++)
         matcher.appendReplacement(query, "?")
     }
 
     matcher.appendTail(query)
 
-    val stmt = ParameterizedStatement(query.toString(), params, this)
-    op(stmt)
-    return stmt
+    return ParameterizedStatement(query.toString(), params, this).apply(op)
 }
 
+fun Connection.execute(sql: String, op: ParameterizedStatement.() -> Unit = {})
+        = query(sql, op).execute()
 
-fun PreparedStatement.execute(): Boolean = execute()
+fun Connection.update(sql: String, op: ParameterizedStatement.() -> Unit = {})
+        = query(sql, op).update()
+
+fun Connection.delete(sql: String, op: ParameterizedStatement.() -> Unit = {})
+        = query(sql, op).delete()
+
+fun Connection.insert(sql: String, op: ParameterizedStatement.() -> Unit = {})
+        = query(sql, op).insert()
+
+fun PreparedStatement.delete(): Int = executeUpdate()
 fun PreparedStatement.update(): Int = executeUpdate()
 fun PreparedStatement.insert(): Int = executeUpdate()
 
