@@ -132,3 +132,21 @@ class ParameterizedStatement(sql: String, private val params: Map<String, List<I
     fun getPos(name: String) =
             params[name] ?: throw SQLException("$name is not a valid parameter name, choose one of ${params.keys}")
 }
+
+public inline fun <T : AutoCloseable, R> T.use(block: (T) -> R): R {
+    var closed = false
+    try {
+        return block(this)
+    } catch (e: Exception) {
+        closed = true
+        try {
+            this.close()
+        } catch (closeException: Exception) {
+        }
+        throw e
+    } finally {
+        if (!closed) {
+            this.close()
+        }
+    }
+}
