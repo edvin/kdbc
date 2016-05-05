@@ -1,23 +1,29 @@
 package kdbc
 
+import java.io.InputStream
+import java.math.BigDecimal
 import java.sql.*
+import java.time.LocalDate
+import java.time.LocalDateTime
 
 class Database private constructor(val cp: ConnectionProvider) {
 
     fun select(sql: String, params: Array<*> = arrayOf<Any>()) =
         cp.get().prepareStatement(sql).apply {
-            params.forEachIndexed { index, v ->
-                val i = index + 1
-                when (v) {
-                    is Int -> setInt(i,v)
-                    is Long -> setLong(i,v)
-                    is String -> setString(i,v)
-                    is Double -> setDouble(i,v)
-                    is Float -> setFloat(i,v)
-                    is Date -> setDate(i,v)
-                    is Timestamp -> setTimestamp(i,v)
-                    is Time -> setTime(i,v)
-                    else -> setObject(i,v)
+            params.forEachIndexed { index, value ->
+                val pos = index + 1
+                when (value) {
+                    is Int -> setInt(pos, value)
+                    is String -> setString(pos, value)
+                    is Double -> setDouble(pos, value)
+                    is Float -> setFloat(pos, value)
+                    is Long -> setLong(pos, value)
+                    is LocalDate -> setDate(pos, java.sql.Date.valueOf(value))
+                    is LocalDateTime -> setTimestamp(pos, java.sql.Timestamp.valueOf(value))
+                    is BigDecimal -> setBigDecimal(pos, value)
+                    is InputStream -> setBinaryStream(pos, value)
+                    value == null -> setObject(pos,null)
+                    else -> throw SQLException("Don't know how to handle parameters of type ${value?.javaClass}")
                 }
             }
         }.asSequence()
