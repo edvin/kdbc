@@ -29,7 +29,7 @@ class QueryTests {
     }
 
     fun getCustomerById(id: Int): Customer = with(db) {
-        query("SELECT * FROM customers WHERE id = :id") {
+        select("SELECT * FROM customers WHERE id = :id") {
             param("id", id)
         } single {
             Customer(getInt("id"), getString("name"))
@@ -81,7 +81,7 @@ class QueryTests {
 
     @Test
     fun resultSetTest() {
-        val rs = db.query("SELECT * FROM customers").executeQuery()
+        val rs = db.select("SELECT * FROM customers").executeQuery()
         while (rs.next()) println(rs.getString("name"))
     }
 }
