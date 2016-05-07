@@ -2,24 +2,18 @@ package kdbc
 
 import java.io.InputStream
 import java.math.BigDecimal
-import java.sql.*
+import java.sql.Connection
 import java.sql.Date
+import java.sql.SQLException
+import java.sql.Timestamp
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.*
 
-interface IQueryBuilder {
-    val sql : String
-    val connection: Connection
-    val stmt: PreparedStatement
-    fun param(name: String, value: Any?, type: Int)
-    fun param(name: String, value: Any)
-    fun params(vararg params: Any)
-}
 
-class QueryBuilder(override val sql: String, override val connection: Connection): IQueryBuilder {
+class QueryBuilder(val sql: String, val connection: Connection) {
     private val params: Map<String, List<Int>> = HashMap()
-    override val stmt = connection.prepareStatement(sql)
+    val stmt = connection.prepareStatement(sql)
 
     /**
      * Set value for named parameter, which can be null. JDBC Type must be given explicitly.
@@ -27,7 +21,7 @@ class QueryBuilder(override val sql: String, override val connection: Connection
      * @see java.sql.Types
      *
      */
-    override fun param(name: String, value: Any?, type: Int) {
+    fun param(name: String, value: Any?, type: Int) {
         for (pos in getPos(name)) {
             if (value == null)
                 stmt.setNull(pos, type)
@@ -39,7 +33,7 @@ class QueryBuilder(override val sql: String, override val connection: Connection
     /**
      * Set non-null value for named parameter.
      */
-    override fun param(name: String, value: Any) {
+    fun param(name: String, value: Any) {
         for (pos in getPos(name)) {
             writeParam(pos, value)
         }
@@ -60,7 +54,7 @@ class QueryBuilder(override val sql: String, override val connection: Connection
         }
     }
 
-    override fun params(vararg params: Any) {
+    fun params(vararg params: Any) {
         for (param in params.withIndex()) {
             writeParam(param.index + 1, param.value)
         }
