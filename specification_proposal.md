@@ -1,9 +1,6 @@
 
 **PURPOSE**: A functional, fluent Kotlin wrapper API to work with JDBC and `ResultSet` Sequences
 
-#SELECT Usage Examples
-
-
 ###Simple SELECT with Parameter
 ```kotlin
 data class User(val id: Int, val firstName: String, val lastName: String)
