@@ -14,7 +14,7 @@ val ds: DataSource =  HikariConfig config = HikariConfig().apply {
           }.let { HikariDataSource(config) }
 
 
-val user: Sequence<User> = ds.select("SELECT * FROM USER WHERE ID = :id")
+val user: Sequence<User> = ds.select("SELECT * FROM USER WHERE ID = #{id}")
    .parameter("id",2563)
    .get { User(it.getInt("ID"), it.getString("FIRST_NAME"), it.getString("LAST_NAME") } 
 
