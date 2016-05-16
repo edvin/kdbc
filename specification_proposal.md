@@ -1,6 +1,7 @@
 
 **PURPOSE**: A functional, fluent Kotlin wrapper API to work with JDBC and `ResultSet` Sequences
 
+Please see [RxJava-JDBC](https://github.com/davidmoten/rxjava-jdbc) for inspiration behind these examples
 
 ####Example Declarations
 
