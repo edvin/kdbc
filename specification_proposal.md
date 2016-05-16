@@ -85,7 +85,7 @@ val newUsers = ...
 
 val newIds = newUsers.flatMap { 
     ds.insert("INSERT INTO USER (FIRST_NAME, LAST_NAME) VALUES (#{it.firstName},#{it.lastName})")
-    .batchSize(1000)
+    .batchSize(1000)  //not quite sure how to scope this :/
     .returnGeneratedKeys()
 }
 ```
