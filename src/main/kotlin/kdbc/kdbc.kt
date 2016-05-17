@@ -2,14 +2,11 @@ package kdbc
 
 import java.io.InputStream
 import java.math.BigDecimal
-import java.sql.Connection
-import java.sql.PreparedStatement
-import java.sql.ResultSet
-import java.sql.SQLException
+import java.sql.*
+import java.sql.Date
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.*
-import kotlin.text.Regex
 
 /**
  * Create a ParameterizedStatement using the given query. Example:
@@ -19,7 +16,7 @@ import kotlin.text.Regex
  *     }
  *
  */
-fun Connection.query(sql: String, op: ParameterizedStatement.() -> Unit = {}): ParameterizedStatement {
+fun Connection.select(sql: String, op: ParameterizedStatement.() -> Unit = {}): ParameterizedStatement {
     val params = HashMap<String, ArrayList<Int>>()
 
     var query = StringBuffer()
@@ -45,16 +42,16 @@ fun Connection.query(sql: String, op: ParameterizedStatement.() -> Unit = {}): P
 }
 
 fun Connection.execute(sql: String, op: ParameterizedStatement.() -> Unit = {})
-        = query(sql, op).execute()
+        = select(sql, op).execute()
 
 fun Connection.update(sql: String, op: ParameterizedStatement.() -> Unit = {})
-        = query(sql, op).update()
+        = select(sql, op).update()
 
 fun Connection.delete(sql: String, op: ParameterizedStatement.() -> Unit = {})
-        = query(sql, op).delete()
+        = select(sql, op).delete()
 
 fun Connection.insert(sql: String, op: ParameterizedStatement.() -> Unit = {})
-        = query(sql, op).insert()
+        = select(sql, op).insert()
 
 fun PreparedStatement.delete(): Int = executeUpdate()
 fun PreparedStatement.update(): Int = executeUpdate()
@@ -112,25 +109,39 @@ class ParameterizedStatement(sql: String, private val params: Map<String, List<I
     /**
      * Set non-null value for named parameter.
      */
-    fun param(name: String, value: Any) {
+    fun param(name: String, value: Any): ParameterizedStatement {
         for (pos in getPos(name)) {
-            when (value) {
-                is Int -> setInt(pos, value)
-                is String -> setString(pos, value)
-                is Double -> setDouble(pos, value)
-                is Float -> setFloat(pos, value)
-                is Long -> setLong(pos, value)
-                is LocalDate -> setDate(pos, java.sql.Date.valueOf(value))
-                is LocalDateTime -> setTimestamp(pos, java.sql.Timestamp.valueOf(value))
-                is BigDecimal -> setBigDecimal(pos, value)
-                is InputStream -> setBinaryStream(pos, value)
-                else -> throw SQLException("Don't know how to handle parameters of type ${value.javaClass}")
-            }
+            writeParam(pos, value)
         }
+        return this
     }
+
+    private fun writeParam(pos: Int, value: Any): ParameterizedStatement {
+        when (value) {
+            is Int -> setInt(pos, value)
+            is String -> setString(pos, value)
+            is Double -> setDouble(pos, value)
+            is Float -> setFloat(pos, value)
+            is Long -> setLong(pos, value)
+            is LocalDate -> setDate(pos, Date.valueOf(value))
+            is LocalDateTime -> setTimestamp(pos, Timestamp.valueOf(value))
+            is BigDecimal -> setBigDecimal(pos, value)
+            is InputStream -> setBinaryStream(pos, value)
+            else -> throw SQLException("Don't know how to handle parameters of type ${value.javaClass}")
+        }
+        return this
+    }
+
+    fun params(vararg params: Any): ParameterizedStatement {
+        for (param in params.withIndex()) {
+            writeParam(param.index + 1, param.value)
+        }
+        return this
+     }
 
     fun getPos(name: String) =
             params[name] ?: throw SQLException("$name is not a valid parameter name, choose one of ${params.keys}")
+
 }
 
 public inline fun <T : AutoCloseable, R> T.use(block: (T) -> R): R {
@@ -149,4 +160,21 @@ public inline fun <T : AutoCloseable, R> T.use(block: (T) -> R): R {
             this.close()
         }
     }
+}
+
+fun PreparedStatement.asSequence(): Sequence<ResultSet> {
+    return object: Iterator<ResultSet> {
+        val rs = executeQuery()
+        var hasMore = true
+
+        override fun next() = rs
+
+        override fun hasNext():Boolean {
+            hasMore = rs.next()
+            if (!hasMore)
+                rs.close()
+            return hasMore
+        }
+
+    }.asSequence()
 }

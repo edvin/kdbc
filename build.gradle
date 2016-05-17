@@ -7,7 +7,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.0.0-beta-3594'
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.0.+'
     }
 }
 
@@ -18,8 +18,13 @@ repositories {
 }
 
 dependencies {
-    compile     'org.jetbrains.kotlin:kotlin-stdlib:1.0.0-beta-3594'
+    compile 'org.jetbrains.kotlin:kotlin-stdlib:1.0.+'
+    compile 'com.zaxxer:HikariCP:2.4.6'
+    testCompile 'org.postgresql:postgresql:9.4.1208.jre7'
     testCompile 'junit:junit:4.+',
                 'mysql:mysql-connector-java:5.1.37',
-                'com.h2database:h2:1.4.190'
+                'com.h2database:h2:1.4.190',
+                'org.xerial:sqlite-jdbc:3.8.+',
+                'org.jetbrains.kotlin:kotlin-test:1.0.+'
+
 }
