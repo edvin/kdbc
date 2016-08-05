@@ -3,11 +3,12 @@ version '1.0-SNAPSHOT'
 description 'Simple, lightweight and elegant DSL for SQL Queries in Kotlin'
 
 buildscript {
+    ext.kotlin_version = '1.0.1-2'
     repositories {
         mavenCentral()
     }
     dependencies {
-        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.0.0-beta-3594'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }
 }
 
@@ -18,8 +19,9 @@ repositories {
 }
 
 dependencies {
-    compile     'org.jetbrains.kotlin:kotlin-stdlib:1.0.0-beta-3594'
-    testCompile 'junit:junit:4.+',
-                'mysql:mysql-connector-java:5.1.37',
-                'com.h2database:h2:1.4.190'
+    testCompile 'junit:junit:4.+', 'com.h2database:h2:1.4.192'
+    compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+}
+sourceSets {
+    main.java.srcDirs += 'src/main/kotlin'
 }

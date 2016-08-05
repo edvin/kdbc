@@ -9,7 +9,7 @@ import java.sql.SQLException
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.*
-import kotlin.text.Regex
+import javax.sql.DataSource
 
 /**
  * Create a ParameterizedStatement using the given query. Example:
@@ -22,7 +22,7 @@ import kotlin.text.Regex
 fun Connection.query(sql: String, op: ParameterizedStatement.() -> Unit = {}): ParameterizedStatement {
     val params = HashMap<String, ArrayList<Int>>()
 
-    var query = StringBuffer()
+    val query = StringBuffer()
 
     val matcher = Regex(":\\w+").toPattern().matcher(sql)
 
@@ -34,7 +34,7 @@ fun Connection.query(sql: String, op: ParameterizedStatement.() -> Unit = {}): P
         if (params.containsKey(key))
             throw SQLException("Repeated parameter $key")
 
-        var paramsForKey = params.computeIfAbsent(key, { ArrayList() })
+        val paramsForKey = params.computeIfAbsent(key, { ArrayList() })
         paramsForKey.add(paramPos++)
         matcher.appendReplacement(query, "?")
     }
@@ -133,7 +133,7 @@ class ParameterizedStatement(sql: String, private val params: Map<String, List<I
             params[name] ?: throw SQLException("$name is not a valid parameter name, choose one of ${params.keys}")
 }
 
-public inline fun <T : AutoCloseable, R> T.use(block: (T) -> R): R {
+fun <T : AutoCloseable, R> T.use(block: T.() -> R): R {
     var closed = false
     try {
         return block(this)
@@ -150,3 +150,5 @@ public inline fun <T : AutoCloseable, R> T.use(block: (T) -> R): R {
         }
     }
 }
+
+fun <T> DataSource.use(block: Connection.() -> T) = connection.use(block)
