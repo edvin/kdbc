@@ -3,7 +3,7 @@ version '1.0-SNAPSHOT'
 description 'Simple, lightweight and elegant DSL for SQL Queries in Kotlin'
 
 buildscript {
-    ext.kotlin_version = '1.0.1-2'
+    ext.kotlin_version = '1.0.3'
     repositories {
         mavenCentral()
     }

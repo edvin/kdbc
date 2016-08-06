@@ -8,8 +8,7 @@ import java.sql.ResultSet
 import java.sql.SQLException
 import javax.sql.DataSource
 
-data class Customer(var id: Int, var name: String) {
-    constructor() : this(0, "")
+data class Customer(var id: Int? = null, var name: String? = null) {
     constructor(rs: ResultSet) : this(rs.getInt("id"), rs.getString("name"))
 }
 
@@ -20,9 +19,9 @@ class QueryTests {
         init {
             db = JdbcDataSource().apply {
                 setURL("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1")
-                execute { "CREATE TABLE customers (id integer not null primary key, name text)" }
-                execute { "INSERT INTO customers VALUES (1, 'John')" }
-                execute { "INSERT INTO customers VALUES (2, 'Jill')" }
+                execute { "CREATE TABLE customers (id integer not null primary key auto_increment, name text)" }
+                execute { "INSERT INTO customers (name) VALUES ('John')" }
+                execute { "INSERT INTO customers (name) VALUES ('Jill')" }
             }
         }
     }
@@ -60,15 +59,20 @@ class QueryTests {
 
     @Test
     fun insertTest() {
-        val c = Customer(3, "Jane")
+        val c = Customer(name = "Jane")
 
         db.execute {
-            "INSERT INTO customers VALUES (${p(c.id)}, ${p(c.name)})"
+            generatedKeys {
+                c.id = getInt(1)
+            }
+            "INSERT INTO customers (name) VALUES (${p(c.name)})"
         }
 
-        val jane = getCustomerById(3)
+        val id = c.id!!
+        println("Generated id was $id")
+        val jane = getCustomerById(id)
 
-        assertEquals("Customer(id=3, name=Jane)", jane.toString())
+        assertEquals("Customer(id=$id, name=Jane)", jane.toString())
     }
 
     @Test(expected = SQLException::class)

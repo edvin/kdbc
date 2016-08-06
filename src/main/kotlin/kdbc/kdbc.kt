@@ -10,6 +10,7 @@ import java.sql.ResultSet
 import java.sql.SQLException
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.util.concurrent.atomic.AtomicInteger
 import javax.sql.DataSource
 
 /**
@@ -25,7 +26,11 @@ class QueryContext(val autoclose: Boolean) {
     class Param(val value: Any?, val type: Int? = null)
 
     val params = mutableListOf<Param>()
-    var withGeneratedKeys: (ResultSet.() -> Unit)? = null
+    internal var withGeneratedKeys: (ResultSet.(Int) -> Unit)? = null
+
+    fun generatedKeys(op: ResultSet.(Int) -> Unit) {
+        withGeneratedKeys = op
+    }
 
     /**
      * Set value for named parameter, which can be null. JDBC Type must be given explicitly.
@@ -41,7 +46,7 @@ class QueryContext(val autoclose: Boolean) {
     /**
      * Set non-null value for named parameter.
      */
-    fun p(value: Any): String {
+    fun p(value: Any?): String {
         params.add(Param(value))
         return "?"
     }
@@ -57,14 +62,24 @@ class QueryResult(val context: QueryContext, val stmt: PreparedStatement) {
     infix fun <T> execute(op: PreparedStatement.(Boolean) -> T): T {
         val isResultSet = stmt.execute()
         val value = op(stmt, isResultSet)
-        context.withGeneratedKeys?.invoke(stmt.generatedKeys)
+        handleGeneratedKeys()
         if (context.autoclose) stmt.connection.close()
         return value
     }
 
+    private fun handleGeneratedKeys() {
+        if (context.withGeneratedKeys != null) {
+            val keysRs = stmt.generatedKeys
+            val counter = AtomicInteger()
+            while (keysRs.next())
+                context.withGeneratedKeys?.invoke(keysRs, counter.andIncrement)
+        }
+
+    }
+
     infix fun <T> update(op: PreparedStatement.(Int) -> T): T {
         val updated = stmt.executeUpdate()
-        context.withGeneratedKeys?.invoke(stmt.generatedKeys)
+        handleGeneratedKeys()
         val value = op(stmt, updated)
         if (context.autoclose) stmt.connection.close()
         return value
