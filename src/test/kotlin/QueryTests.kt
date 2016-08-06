@@ -89,6 +89,6 @@ class QueryTests {
 
     @Test
     fun sequenceTest() {
-        db.query { "SELECT * FROM customers" }.sequence { Customer(this) }
+        db.query { "SELECT * FROM customers" } sequence { Customer(this) }
     }
 }

@@ -88,5 +88,5 @@ That really is all. Every aspect of the JDBC API is still available to you right
 Convert a `ResultSet` to a `Sequence<T>`:
 
 ```kotlin
-    db.query { "SELECT * FROM customers" }.sequence { Customer(this) }
+    db.query { "SELECT * FROM customers" } sequence { Customer(this) }
 ```
