@@ -97,21 +97,4 @@ class QueryTests {
         }
     }
 
-    @Test
-    fun selectIntoTest() {
-        val customer = db.query {
-            """
-    SELECT
-        id ${into(Customer::id)},
-        name ${into(Customer::name)}
-    FROM CUSTOMERS
-    WHERE id = 2
-    """
-        } intoSingle {
-            Customer()
-        }
-
-        println(customer)
-    }
-
 }
