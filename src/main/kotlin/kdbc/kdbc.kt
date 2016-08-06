@@ -1,14 +1,14 @@
+@file:Suppress("UNCHECKED_CAST")
+
 package kdbc
 
 import java.io.InputStream
 import java.math.BigDecimal
-import java.sql.Connection
-import java.sql.PreparedStatement
-import java.sql.ResultSet
-import java.sql.SQLException
+import java.sql.*
 import java.time.LocalDate
 import java.time.LocalDateTime
 import javax.sql.DataSource
+import kotlin.reflect.KMutableProperty1
 
 /**
  * Create a ParameterizedStatement using the given query. Example:
@@ -24,6 +24,7 @@ class QueryContext(val autoclose: Boolean) {
 
     val params = mutableListOf<Param>()
     var withGeneratedKeys: (ResultSet.() -> Unit)? = null
+    val intos = mutableMapOf<String, KMutableProperty1<Any, Any>>()
 
     /**
      * Set value for named parameter, which can be null. JDBC Type must be given explicitly.
@@ -49,6 +50,12 @@ class QueryContext(val autoclose: Boolean) {
         return "?"
     }
 
+    fun <S, T>into(prop: KMutableProperty1<S, T>): String {
+        val key = "${prop.name}_${intos.size}".toUpperCase()
+        intos.put(key, prop as KMutableProperty1<Any, Any>)
+        return "as " + key
+    }
+
 }
 
 class QueryResult(val context: QueryContext, val stmt: PreparedStatement) {
@@ -66,6 +73,37 @@ class QueryResult(val context: QueryContext, val stmt: PreparedStatement) {
         val value = op(stmt, updated)
         if (context.autoclose) stmt.connection.close()
         return value
+    }
+
+    infix fun <T> intoSingle(op: () -> T) = single {
+        mapIntos(op(), TypeCache(metaData), this, context.intos as MutableMap<String, KMutableProperty1<T, Any>>) as T
+    }
+
+    private fun <T> mapIntos(receiver: T, typeCache: TypeCache, resultSet: ResultSet, intos: MutableMap<String, KMutableProperty1<T, Any>>): Any {
+        intos.forEach {
+            val alias = it.key
+            val prop = it.value
+
+            when (typeCache.cache[alias]) {
+                Types.INTEGER -> prop.set(receiver, resultSet.getInt(it.key))
+                Types.VARCHAR -> prop.set(receiver, resultSet.getString(it.key))
+                Types.CLOB -> prop.set(receiver, resultSet.getString(it.key))
+            }
+        }
+
+        return receiver!!
+    }
+
+    class TypeCache(meta: ResultSetMetaData) {
+        val cache = mutableMapOf<String, Int>()
+
+        init {
+            (1..meta.columnCount).forEach {
+                val label: String = meta.getColumnLabel(it).toUpperCase()
+                val type: Int = meta.getColumnType(it)
+                cache[label] = type
+            }
+        }
     }
 
     infix fun <T> single(op: ResultSet.() -> T): T = first(op) ?: throw SQLException("No result")

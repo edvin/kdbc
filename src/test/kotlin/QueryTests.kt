@@ -1,4 +1,6 @@
-import kdbc.*
+import kdbc.execute
+import kdbc.query
+import kdbc.update
 import org.h2.jdbcx.JdbcDataSource
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -6,7 +8,8 @@ import java.sql.ResultSet
 import java.sql.SQLException
 import javax.sql.DataSource
 
-data class Customer(val id: Int, val name: String) {
+data class Customer(var id: Int, var name: String) {
+    constructor() : this(0, "")
     constructor(rs: ResultSet) : this(rs.getInt("id"), rs.getString("name"))
 }
 
@@ -93,4 +96,22 @@ class QueryTests {
             println("Found customer in seq: $it")
         }
     }
+
+    @Test
+    fun selectIntoTest() {
+        val customer = db.query {
+            """
+    SELECT
+        id ${into(Customer::id)},
+        name ${into(Customer::name)}
+    FROM CUSTOMERS
+    WHERE id = 2
+    """
+        } intoSingle {
+            Customer()
+        }
+
+        println(customer)
+    }
+
 }
