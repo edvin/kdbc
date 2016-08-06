@@ -3,31 +3,30 @@ import org.h2.jdbcx.JdbcDataSource
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.sql.SQLException
+import javax.sql.DataSource
 
 data class Customer(val id: Int, val name: String)
 
 class QueryTests {
     companion object {
-        private val ds: JdbcDataSource
+        private val db: DataSource
 
         init {
-            ds = JdbcDataSource().apply {
+            db = JdbcDataSource().apply {
                 setURL("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1")
                 use {
-                    execute("CREATE TABLE customers (id integer not null primary key, name text)")
-                    execute("INSERT INTO customers VALUES (1, 'John')")
-                    execute("INSERT INTO customers VALUES (2, 'Jill')")
+                    execute { "CREATE TABLE customers (id integer not null primary key, name text)" }
+                    execute { "INSERT INTO customers VALUES (1, 'John')" }
+                    execute { "INSERT INTO customers VALUES (2, 'Jill')" }
                 }
             }
         }
     }
 
-    fun getCustomerById(id: Int): Customer = ds.use {
-        query("SELECT * FROM customers WHERE id = :id") {
-            param("id", id)
-        } single {
-            Customer(getInt("id"), getString("name"))
-        }
+    fun getCustomerById(id: Int): Customer = db {
+        "SELECT * FROM customers WHERE id = ${p(id)}"
+    } single {
+        Customer(getInt("id"), getString("name"))
     }
 
     @Test
@@ -39,13 +38,12 @@ class QueryTests {
 
     @Test
     fun updateTest() {
-        val updateCount = ds.use {
-            update("UPDATE customers SET name = :name WHERE id = :id") {
-                param("name", "Johnnie")
-                param("id", 1)
-            }
-        }
+        val id = 1
+        val name = "Johnnie"
 
+        val updateCount = db.update {
+            "UPDATE customers SET name = ${p(name)} WHERE id = ${p(id)}"
+        }
         assertEquals(1, updateCount)
 
         val updatedName = getCustomerById(1).name
@@ -55,11 +53,10 @@ class QueryTests {
 
     @Test
     fun insertTest() {
-        ds.use {
-            insert("INSERT INTO customers VALUES (:id, :name)") {
-                param("id", 3)
-                param("name", "Jane")
-            }
+        val c = Customer(3, "Jane")
+
+        db.insert {
+            "INSERT INTO customers VALUES (${p(c.id)}, ${p(c.name)})"
         }
 
         val jane = getCustomerById(3)
@@ -69,18 +66,17 @@ class QueryTests {
 
     @Test(expected = SQLException::class)
     fun deleteTest() {
-        ds.use {
-            delete("DELETE FROM customers WHERE id = :id") {
-                param("id", 1)
-            }
+        val id = 1
+        db.delete {
+            "DELETE FROM customers WHERE id = ${p(id)}"
         }
         getCustomerById(1)
     }
 
     @Test
     fun resultSetTest() {
-        val conn = ds.connection
-        val rs = conn.query("SELECT * FROM customers").executeQuery()
+        val conn = db.connection
+        val rs = conn.query { "SELECT * FROM customers" }.executeQuery()
         while (rs.next()) println(rs.getString("name"))
         conn.close()
     }

@@ -19,42 +19,81 @@ import javax.sql.DataSource
  *     }
  *
  */
-fun Connection.query(sql: String, op: ParameterizedStatement.() -> Unit = {}): ParameterizedStatement {
-    val params = HashMap<String, ArrayList<Int>>()
+class SqlContext {
+    class Param(val value: Any?, val type: Int? = null)
+    val params = mutableListOf<Param>()
 
-    val query = StringBuffer()
-
-    val matcher = Regex(":\\w+").toPattern().matcher(sql)
-
-    var paramPos = 1
-
-    while (matcher.find()) {
-        val key = matcher.group().substring(1)
-
-        if (params.containsKey(key))
-            throw SQLException("Repeated parameter $key")
-
-        val paramsForKey = params.computeIfAbsent(key, { ArrayList() })
-        paramsForKey.add(paramPos++)
-        matcher.appendReplacement(query, "?")
+    /**
+     * Set value for named parameter, which can be null. JDBC Type must be given explicitly.
+     *
+     * @see java.sql.Types
+     *
+     */
+    fun p(value: Any?, type: Int): String {
+        params.add(Param(value, type))
+        return "?"
     }
 
-    matcher.appendTail(query)
+    /**
+     * Set non-null value for named parameter.
+     */
+    fun p(value: Any): String {
+        params.add(Param(value))
+        return "?"
+    }
 
-    return ParameterizedStatement(query.toString(), params, this).apply(op)
+    val Any.q: String  get() {
+        params.add(Param(this))
+        return "?"
+    }
+
+    operator fun invoke(value: Any?): String {
+        println("Adding parameter $value")
+        params.add(Param(value))
+        return "?"
+    }
 }
 
-fun Connection.execute(sql: String, op: ParameterizedStatement.() -> Unit = {})
-        = query(sql, op).execute()
+fun Connection.query(sqlOp: SqlContext.() -> String): PreparedStatement {
+    val context = SqlContext()
+    val sql = sqlOp(context)
+    val stmt = prepareStatement(sql)
+    context.params.forEachIndexed { index, param ->
+        val pos = index + 1
+        if (param.type != null) {
+            if (param.value == null)
+                stmt.setNull(pos, param.type)
+            else
+                stmt.setObject(pos, param.value, param.type)
+        } else {
+            when (param.value) {
+                is Int -> stmt.setInt(pos, param.value)
+                is String -> stmt.setString(pos, param.value)
+                is Double -> stmt.setDouble(pos, param.value)
+                is Float -> stmt.setFloat(pos, param.value)
+                is Long -> stmt.setLong(pos, param.value)
+                is LocalDate -> stmt.setDate(pos, java.sql.Date.valueOf(param.value))
+                is LocalDateTime -> stmt.setTimestamp(pos, java.sql.Timestamp.valueOf(param.value))
+                is BigDecimal -> stmt.setBigDecimal(pos, param.value)
+                is InputStream -> stmt.setBinaryStream(pos, param.value)
+                else -> throw SQLException("Don't know how to handle parameters of type ${param.value?.javaClass}")
+            }
+        }
+    }
+    return stmt
+}
 
-fun Connection.update(sql: String, op: ParameterizedStatement.() -> Unit = {})
-        = query(sql, op).update()
+fun DataSource.query(sqlOp: SqlContext.() -> String) = connection.query(sqlOp)
+fun DataSource.execute(sqlOp: SqlContext.() -> String) = connection.execute(sqlOp)
+fun DataSource.update(sqlOp: SqlContext.() -> String) = connection.update(sqlOp)
+fun DataSource.delete(sqlOp: SqlContext.() -> String) = connection.delete(sqlOp)
+fun DataSource.insert(sqlOp: SqlContext.() -> String) = connection.insert(sqlOp)
 
-fun Connection.delete(sql: String, op: ParameterizedStatement.() -> Unit = {})
-        = query(sql, op).delete()
-
-fun Connection.insert(sql: String, op: ParameterizedStatement.() -> Unit = {})
-        = query(sql, op).insert()
+fun Connection.execute(sqlOp: SqlContext.() -> String) = query(sqlOp).execute()
+fun Connection.update(sqlOp: SqlContext.() -> String) = query(sqlOp).update()
+fun Connection.delete(sqlOp: SqlContext.() -> String) = query(sqlOp).delete()
+fun Connection.insert(sqlOp: SqlContext.() -> String) = query(sqlOp).insert()
+operator fun Connection.invoke(sqlOp: SqlContext.() -> String) = query(sqlOp)
 
 fun PreparedStatement.delete(): Int = executeUpdate()
 fun PreparedStatement.update(): Int = executeUpdate()
@@ -88,51 +127,6 @@ infix fun <T> PreparedStatement.first(op: ResultSet.() -> T): T? {
 infix fun <T> PreparedStatement.single(op: ResultSet.() -> T): T =
         first(op) ?: throw SQLException("No result")
 
-/**
- * A PreparedStatement wrapper with the ability to reference parameters by name instead of position.
- */
-class ParameterizedStatement(sql: String, private val params: Map<String, List<Int>>, connection: Connection)
-: PreparedStatement by connection.prepareStatement(sql) {
-
-    /**
-     * Set value for named parameter, which can be null. JDBC Type must be given explicitly.
-     *
-     * @see java.sql.Types
-     *
-     */
-    fun param(name: String, value: Any?, type: Int) {
-        for (pos in getPos(name)) {
-            if (value == null)
-                setNull(pos, type)
-            else
-                setObject(pos, value, type)
-        }
-    }
-
-    /**
-     * Set non-null value for named parameter.
-     */
-    fun param(name: String, value: Any) {
-        for (pos in getPos(name)) {
-            when (value) {
-                is Int -> setInt(pos, value)
-                is String -> setString(pos, value)
-                is Double -> setDouble(pos, value)
-                is Float -> setFloat(pos, value)
-                is Long -> setLong(pos, value)
-                is LocalDate -> setDate(pos, java.sql.Date.valueOf(value))
-                is LocalDateTime -> setTimestamp(pos, java.sql.Timestamp.valueOf(value))
-                is BigDecimal -> setBigDecimal(pos, value)
-                is InputStream -> setBinaryStream(pos, value)
-                else -> throw SQLException("Don't know how to handle parameters of type ${value.javaClass}")
-            }
-        }
-    }
-
-    fun getPos(name: String) =
-            params[name] ?: throw SQLException("$name is not a valid parameter name, choose one of ${params.keys}")
-}
-
 fun <T : AutoCloseable, R> T.use(block: T.() -> R): R {
     var closed = false
     try {
@@ -152,3 +146,4 @@ fun <T : AutoCloseable, R> T.use(block: T.() -> R): R {
 }
 
 fun <T> DataSource.use(block: Connection.() -> T) = connection.use(block)
+operator fun DataSource.invoke(sqlOp: SqlContext.() -> String) = query(sqlOp)

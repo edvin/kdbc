@@ -11,17 +11,16 @@ Let's get a connection to a database and create a Customer table with some hard 
 ```kotlin
 	val db = DriverManager.getConnection("jdbc:h2:mem:")
 	
-	with(db) {
-		execute("CREATE TABLE customers (id integer not null primary key, name text)")
-		execute("INSERT INTO customers VALUES (1, 'John')")
-		execute("INSERT INTO customers VALUES (2, 'Jill')")
+	db.use {
+		execute { "CREATE TABLE customers (id integer not null primary key, name text)") }
+		execute { "INSERT INTO customers VALUES (1, 'John')" }
+		execute { "INSERT INTO customers VALUES (2, 'Jill')" }
 	}
 ```
 
 The query DSL is centered around the following workflow:
 
-* Get a database connection and execute a query
-* Bind named parameters
+* Get a database connection and create an sql string using the `p` interpolator function to quote values
 * Ask for a list or a single object
 * Map the ResultSet to a domain object or simply use the ResultSet object as you wish
 
@@ -34,52 +33,54 @@ We want to work with domain objects, so we define a `Customer` class:
 Let's define a DAO function to query for customers by id and return a fully mapped `Customer`:
 
 ```kotlin
-	fun getCustomerById(id: Int): Customer = with(db) {
-		query("SELECT * FROM customers WHERE id = :id") {
-			param("id", id)
-		} single {
-			Customer(getInt("id"), getString("name"))
-		}
-	}
+	fun getCustomerById(id: Int) = db {
+		"SELECT * FROM customers WHERE id = ${p(id)}"
+    } single {
+        Customer(getInt("id"), getString("name"))
+    }
 ```
 
-The `query` function is an extension on `java.sql.Connection`. It takes an SQL query string
-that supports named parameters. The second parameter is an operation on the `ParameterizedStatement` object
-where you can map values to the named parameters. Then the `ParameterizedStatement` is returned. On this object you
-can either call `executeQuery` to access the ResultSet, or use any of the convenience functions `list`, `single` or
+The `query` function is an extension on `java.sql.Connection`. It takes a function that should create an SQL query string.
+It supports interpolating variables via the '${p()}' parameter function. This function returns a `PreparedStatement` object. 
+On this object you can either call `executeQuery` to access the ResultSet, or use any of the convenience functions `list`, `single` or
 `first` that operates on the ResultSet and lets you map the result set to a domain object. In the example above,
 the `id` and `name` columns are extracted and passed to the `Customer` data class constructor.
  
 Let's update customer number 2 with a new name:
 
 ```kotlin
-	db.update("UPDATE customers SET name = :name WHERE id = :id") {
-		param("name", "Johnnie")
-		param("id", 1)
+    val name = "Johnnie"
+    val id = 1
+	db.update { 
+	    "UPDATE customers SET name = ${p(name)} WHERE id = ${p(id)}" 
 	}
 ```
     
-The above example is a short hand form of `db.query`, setting parameters and then calling `update`. Similar
-shortcuts are available for `insert` and `delete` as well.
+The above example is a short hand form of `db.query` and then calling `update`. Similar
+shortcuts are available for `insert` and `delete` as well. You can even operate on a `DataSource` just like if it was
+a `Connection`.
 
 Let's delete customer number 1:
 
 ```kotlin
-	db.delete("DELETE FROM customers WHERE id = :id") {
-		param("id", 1)
+    val id = 1
+    
+	db.delete { 
+	    "DELETE FROM customers WHERE id = ${p(id)}" 
 	}
 ```
 
 If you want to set a value that might be null or you want to explicitly set the type parameter from `java.sql.Types`,
- you add the type as the third parameter to `param`:
+ you add the type as the second parameter to `p`:
  
 ```kotlin
-	db.insert("INSERT INTO customers VALUES (:id, :name)" {
-		param("id", 4, Types.INTEGER)
-		...
-	}
+    function insertCustomer(customer: Customer) {
+        db.insert {
+            "INSERT INTO customers VALUES (${p(customer.id, Types.INTEGER})), ${p(customer.name})"
+        }
+    }
 ```
 
-The `param` function can handle most data types, and it's easy to extend it with your custom types and mappings.
+The `p` function can handle most data types, and it's easy to extend it with your custom types and mappings.
 
 That really is all. Every aspect of the JDBC API is still available to you right inside the DSL.
