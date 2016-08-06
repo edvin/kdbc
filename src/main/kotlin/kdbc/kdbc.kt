@@ -8,7 +8,6 @@ import java.sql.ResultSet
 import java.sql.SQLException
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.util.*
 import javax.sql.DataSource
 
 /**
@@ -69,16 +68,18 @@ class QueryResult(val context: QueryContext, val stmt: PreparedStatement) {
         return value
     }
 
-    infix fun <T> single(op: ResultSet.() -> T): T = execute {
-        single(op)
-    }
+    infix fun <T> single(op: ResultSet.() -> T): T = first(op) ?: throw SQLException("No result")
 
     infix fun <T> first(op: ResultSet.() -> T): T? = execute {
-        first(op)
+        val rs = resultSet
+        if (rs.next()) op(rs) else null
     }
 
     infix fun <T> list(op: ResultSet.() -> T): List<T> = execute {
-        list(op)
+        val list = mutableListOf<T>()
+        val rs = resultSet
+        while (rs.next()) list.add(op(rs))
+        list
     }
 
     infix fun <T> sequence(op: ResultSet.() -> T): Sequence<T>
@@ -125,18 +126,6 @@ fun DataSource.query(sqlOp: QueryContext.() -> String): QueryResult = connection
 fun DataSource.execute(sqlOp: QueryContext.() -> String): Boolean = connection.execute(true, sqlOp)
 fun DataSource.update(sqlOp: QueryContext.() -> String): Int = connection.update(true, sqlOp)
 
-
-/**
- * Execute the query and transform each result set entry via the supplied function.
- */
-infix fun <T> PreparedStatement.list(op: ResultSet.() -> T): List<T> {
-    val list = ArrayList<T>()
-    val rs = executeQuery()
-    while (rs.next())
-        list.add(op(rs))
-    return list
-}
-
 class ResultSetIterator<out T>(val autoclose: Boolean, val rs: ResultSet, val op: ResultSet.() -> T) : Iterator<T> {
     override fun hasNext() : Boolean {
         val isLast = rs.isLast
@@ -150,23 +139,6 @@ class ResultSetIterator<out T>(val autoclose: Boolean, val rs: ResultSet, val op
         return op(rs)
     }
 }
-
-/**
- * Execute the query and transform the first result set entry via the supplied function.
- * If no entries are found, return null
- */
-infix fun <T> PreparedStatement.first(op: ResultSet.() -> T): T? {
-    val rs = executeQuery()
-    return if (rs.next()) op(rs) else null
-}
-
-/**
- * Execute the query and transform the first, required result set entry via the supplied function.
- *
- * @throws SQLException If there are no result data
- */
-infix fun <T> PreparedStatement.single(op: ResultSet.() -> T): T =
-        first(op) ?: throw SQLException("No result")
 
 fun <T : AutoCloseable, R> T.use(block: T.() -> R): R {
     var closed = false
