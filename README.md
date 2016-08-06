@@ -84,3 +84,9 @@ If you want to set a value that might be null or you want to explicitly set the 
 The `p` function can handle most data types, and it's easy to extend it with your custom types and mappings.
 
 That really is all. Every aspect of the JDBC API is still available to you right inside the DSL.
+
+Convert a `ResultSet` to a `Sequence<T>`:
+
+```kotlin
+    db.query { "SELECT * FROM customers" }.sequence { Customer(this) }
+```

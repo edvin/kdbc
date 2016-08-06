@@ -2,10 +2,13 @@ import kdbc.*
 import org.h2.jdbcx.JdbcDataSource
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.sql.ResultSet
 import java.sql.SQLException
 import javax.sql.DataSource
 
-data class Customer(val id: Int, val name: String)
+data class Customer(val id: Int, val name: String) {
+    constructor(rs: ResultSet) : this(rs.getInt("id"), rs.getString("name"))
+}
 
 class QueryTests {
     companion object {
@@ -23,8 +26,8 @@ class QueryTests {
         }
     }
 
-    fun getCustomerById(id: Int): Customer = db {
-        "SELECT * FROM customers WHERE id = ${p(id)}".intern()
+    fun getCustomerById(id: Int) = db {
+        "SELECT * FROM customers WHERE id = ${p(id)}"
     } single {
         Customer(getInt("id"), getString("name"))
     }
@@ -42,7 +45,10 @@ class QueryTests {
         val name = "Johnnie"
 
         val updateCount = db.update {
-            "UPDATE customers SET name = ${p(name)} WHERE id = ${p(id)}"
+            """UPDATE customers SET
+            name = ${name.q}
+            WHERE id = ${id.q}
+            """
         }
         assertEquals(1, updateCount)
 
@@ -79,5 +85,10 @@ class QueryTests {
         val rs = conn.query { "SELECT * FROM customers" }.executeQuery()
         while (rs.next()) println(rs.getString("name"))
         conn.close()
+    }
+
+    @Test
+    fun sequenceTest() {
+        db.query { "SELECT * FROM customers" }.sequence { Customer(this) }
     }
 }

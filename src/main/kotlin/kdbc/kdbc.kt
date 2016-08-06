@@ -22,6 +22,7 @@ import javax.sql.DataSource
  */
 class SqlContext {
     class Param(val value: Any?, val type: Int? = null)
+
     val params = mutableListOf<Param>()
 
     /**
@@ -43,16 +44,11 @@ class SqlContext {
         return "?"
     }
 
-    val Any.q: String  get() {
+    val Any.q: String get() {
         params.add(Param(this))
         return "?"
     }
 
-    operator fun invoke(value: Any?): String {
-        println("Adding parameter $value")
-        params.add(Param(value))
-        return "?"
-    }
 }
 
 fun Connection.query(sqlOp: SqlContext.() -> String): PreparedStatement {
@@ -111,9 +107,20 @@ infix fun <T> PreparedStatement.list(op: ResultSet.() -> T): List<T> {
     return list
 }
 
+class ResultSetIterator<out T>(val rs: ResultSet, val op: ResultSet.() -> T) : Iterator<T> {
+    override fun hasNext() = !rs.isLast
+    override fun next(): T {
+        rs.next()
+        return op(rs)
+    }
+}
+
+infix fun <T> PreparedStatement.sequence(op: ResultSet.() -> T): Sequence<T>
+        = ResultSetIterator(executeQuery(), op).asSequence()
+
 /**
  * Execute the query and transform the first result set entry via the supplied function.
- * If you entries are found, return null
+ * If no entries are found, return null
  */
 infix fun <T> PreparedStatement.first(op: ResultSet.() -> T): T? {
     val rs = executeQuery()
