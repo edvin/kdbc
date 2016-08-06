@@ -10,6 +10,7 @@ import java.sql.ResultSet
 import java.sql.SQLException
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.util.concurrent.atomic.AtomicInteger
 import javax.sql.DataSource
 
@@ -26,9 +27,9 @@ class QueryContext(val autoclose: Boolean) {
     class Param(val value: Any?, val type: Int? = null)
 
     val params = mutableListOf<Param>()
-    internal var withGeneratedKeys: (ResultSet.(Int) -> Unit)? = null
+    var withGeneratedKeys: (ResultSet.(Int) -> Unit)? = null
 
-    fun generatedKeys(op: ResultSet.(Int) -> Unit) {
+    infix fun generatedKeys(op: ResultSet.(Int) -> Unit) {
         withGeneratedKeys = op
     }
 
@@ -46,12 +47,22 @@ class QueryContext(val autoclose: Boolean) {
     /**
      * Set non-null value for named parameter.
      */
-    fun p(value: Any?): String {
+    infix fun p(value: Any?): String {
         params.add(Param(value))
         return "?"
     }
 
-    val Any.q: String get() {
+    operator fun Any?.not(): String {
+        params.add(Param(this))
+        return "?"
+    }
+
+    operator fun Any?.invoke(): String {
+        params.add(Param(this))
+        return "?"
+    }
+
+    val Any?.p: String get() {
         params.add(Param(this))
         return "?"
     }
@@ -59,6 +70,7 @@ class QueryContext(val autoclose: Boolean) {
 }
 
 class QueryResult(val context: QueryContext, val stmt: PreparedStatement) {
+
     infix fun <T> execute(op: PreparedStatement.(Boolean) -> T): T {
         val isResultSet = stmt.execute()
         val value = op(stmt, isResultSet)
@@ -74,15 +86,6 @@ class QueryResult(val context: QueryContext, val stmt: PreparedStatement) {
             while (keysRs.next())
                 context.withGeneratedKeys?.invoke(keysRs, counter.andIncrement)
         }
-
-    }
-
-    infix fun <T> update(op: PreparedStatement.(Int) -> T): T {
-        val updated = stmt.executeUpdate()
-        handleGeneratedKeys()
-        val value = op(stmt, updated)
-        if (context.autoclose) stmt.connection.close()
-        return value
     }
 
     infix fun <T> single(op: ResultSet.() -> T): T = first(op) ?: throw SQLException("No result")
@@ -107,10 +110,8 @@ fun Connection.query(autoclose: Boolean = false, sqlOp: QueryContext.() -> Strin
     val context = QueryContext(autoclose)
     val sql = sqlOp(context)
 
-    val keyStrategy = if(context.withGeneratedKeys == null) PreparedStatement.NO_GENERATED_KEYS
-    else PreparedStatement.RETURN_GENERATED_KEYS
+    val stmt = prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)
 
-    val stmt = prepareStatement(sql, keyStrategy)
     context.params.forEachIndexed { index, param ->
         val pos = index + 1
         if (param.type != null) {
@@ -125,6 +126,7 @@ fun Connection.query(autoclose: Boolean = false, sqlOp: QueryContext.() -> Strin
                 is Double -> stmt.setDouble(pos, param.value)
                 is Float -> stmt.setFloat(pos, param.value)
                 is Long -> stmt.setLong(pos, param.value)
+                is LocalTime -> stmt.setTime(pos, java.sql.Time.valueOf(param.value))
                 is LocalDate -> stmt.setDate(pos, java.sql.Date.valueOf(param.value))
                 is LocalDateTime -> stmt.setTimestamp(pos, java.sql.Timestamp.valueOf(param.value))
                 is BigDecimal -> stmt.setBigDecimal(pos, param.value)
@@ -137,11 +139,9 @@ fun Connection.query(autoclose: Boolean = false, sqlOp: QueryContext.() -> Strin
 }
 
 fun Connection.execute(autoclose: Boolean = false, sqlOp: QueryContext.() -> String): Boolean = query(autoclose, sqlOp).execute { it }
-fun Connection.update(autoclose: Boolean = false, sqlOp: QueryContext.() -> String): Int = query(autoclose, sqlOp).update { it }
 
 fun DataSource.query(sqlOp: QueryContext.() -> String): QueryResult = connection.query(true, sqlOp)
 fun DataSource.execute(sqlOp: QueryContext.() -> String): Boolean = connection.execute(true, sqlOp)
-fun DataSource.update(sqlOp: QueryContext.() -> String): Int = connection.update(true, sqlOp)
 
 class ResultSetIterator<out T>(val autoclose: Boolean, val rs: ResultSet, val op: ResultSet.() -> T) : Iterator<T> {
     override fun hasNext() : Boolean {
@@ -177,3 +177,12 @@ fun <R> Connection.use(transactional: Boolean = false, block: Connection.() -> R
 fun <T> DataSource.use(transactional: Boolean = false, block: Connection.() -> T) = connection.use(transactional, block)
 fun <T> DataSource.transaction(block: Connection.() -> T) = connection.use(true, block)
 fun <T> Connection.transaction(block: Connection.() -> T) = use(true, block)
+
+val ResultSet.asInt: Int get() = getInt(1)
+val ResultSet.asString: String get() = getString(1)
+val ResultSet.asLong: Long get() = getLong(1)
+val ResultSet.asDouble: Double get() = getDouble(1)
+val ResultSet.asFloat: Float get() = getFloat(1)
+val ResultSet.asLocalTime: LocalTime get() = getTime(1).toLocalTime()
+val ResultSet.asLocalDate: LocalDate get() = getDate(1).toLocalDate()
+val ResultSet.asLocalDateTime: LocalDateTime get() = getTimestamp(1).toLocalDateTime()

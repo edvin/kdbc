@@ -1,7 +1,4 @@
-import kdbc.execute
-import kdbc.query
-import kdbc.transaction
-import kdbc.update
+import kdbc.*
 import org.h2.jdbcx.JdbcDataSource
 import org.junit.Assert
 import org.junit.Assert.assertEquals
@@ -29,7 +26,7 @@ class QueryTests {
     }
 
     fun getCustomerById(id: Int): Customer = db.query {
-        "SELECT * FROM customers WHERE id = ${p(id)}"
+        "SELECT * FROM customers WHERE id = $id"
     } single {
         Customer(getInt("id"), getString("name"))
     }
@@ -46,13 +43,12 @@ class QueryTests {
         val id = 1
         val name = "Johnnie"
 
-        val updateCount = db.update {
+        db.execute {
             """UPDATE customers SET
-            name = ${name.q}
-            WHERE id = ${id.q}
+            name = ${name.p}
+            WHERE id = ${id.p}
             """
         }
-        assertEquals(1, updateCount)
 
         val updatedName = getCustomerById(1).name
 
@@ -64,25 +60,19 @@ class QueryTests {
         val c = Customer(name = "Jane")
 
         db.execute {
-            generatedKeys {
-                c.id = getInt(1)
-            }
-            "INSERT INTO customers (name) VALUES (${p(c.name)})"
+            generatedKeys { c.id = asInt }
+            "INSERT INTO customers (name) VALUES (${c.name()})"
         }
 
-        val id = c.id!!
-        println("Generated id was $id")
-        val jane = getCustomerById(id)
+        val jane = getCustomerById(c.id!!)
 
-        assertEquals("Customer(id=$id, name=Jane)", jane.toString())
+        assertEquals("Customer(id=${c.id}, name=Jane)", jane.toString())
     }
 
     @Test(expected = SQLException::class)
     fun deleteTest() {
         val id = 1
-        db.update {
-            "DELETE FROM customers WHERE id = ${p(id)}"
-        }
+        db.execute { "DELETE FROM customers WHERE id = ${id.p}" }
         getCustomerById(1)
     }
 
@@ -117,4 +107,5 @@ class QueryTests {
         val customer = db.query { "SELECT * FROM customers WHERE id = 1" } single { Customer(this) }
         Assert.assertNotEquals("Name should not be changed", "Blah", customer.name)
     }
+
 }
