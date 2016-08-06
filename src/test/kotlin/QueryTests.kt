@@ -17,16 +17,14 @@ class QueryTests {
         init {
             db = JdbcDataSource().apply {
                 setURL("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1")
-                use {
-                    execute { "CREATE TABLE customers (id integer not null primary key, name text)" }
-                    execute { "INSERT INTO customers VALUES (1, 'John')" }
-                    execute { "INSERT INTO customers VALUES (2, 'Jill')" }
-                }
+                execute { "CREATE TABLE customers (id integer not null primary key, name text)" }
+                execute { "INSERT INTO customers VALUES (1, 'John')" }
+                execute { "INSERT INTO customers VALUES (2, 'Jill')" }
             }
         }
     }
 
-    fun getCustomerById(id: Int) = db {
+    fun getCustomerById(id: Int): Customer = db.query {
         "SELECT * FROM customers WHERE id = ${p(id)}"
     } single {
         Customer(getInt("id"), getString("name"))
@@ -61,7 +59,7 @@ class QueryTests {
     fun insertTest() {
         val c = Customer(3, "Jane")
 
-        db.insert {
+        db.execute {
             "INSERT INTO customers VALUES (${p(c.id)}, ${p(c.name)})"
         }
 
@@ -73,7 +71,7 @@ class QueryTests {
     @Test(expected = SQLException::class)
     fun deleteTest() {
         val id = 1
-        db.delete {
+        db.update {
             "DELETE FROM customers WHERE id = ${p(id)}"
         }
         getCustomerById(1)
@@ -81,14 +79,18 @@ class QueryTests {
 
     @Test
     fun resultSetTest() {
-        val conn = db.connection
-        val rs = conn.query { "SELECT * FROM customers" }.executeQuery()
-        while (rs.next()) println(rs.getString("name"))
-        conn.close()
+        db.query {
+            "SELECT * FROM customers"
+        } execute {
+            while (resultSet.next()) println(resultSet.getString("name"))
+        }
     }
 
     @Test
     fun sequenceTest() {
-        db.query { "SELECT * FROM customers" } sequence { Customer(this) }
+        val seq = db.query { "SELECT * FROM customers" } sequence { Customer(this) }
+        seq.forEach {
+            println("Found customer in seq: $it")
+        }
     }
 }

@@ -20,10 +20,11 @@ import javax.sql.DataSource
  *     }
  *
  */
-class SqlContext {
+class QueryContext(val autoclose: Boolean) {
     class Param(val value: Any?, val type: Int? = null)
 
     val params = mutableListOf<Param>()
+    var withGeneratedKeys: (ResultSet.() -> Unit)? = null
 
     /**
      * Set value for named parameter, which can be null. JDBC Type must be given explicitly.
@@ -51,10 +52,47 @@ class SqlContext {
 
 }
 
-fun Connection.query(sqlOp: SqlContext.() -> String): PreparedStatement {
-    val context = SqlContext()
+class QueryResult(val context: QueryContext, val stmt: PreparedStatement) {
+    infix fun <T> execute(op: PreparedStatement.(Boolean) -> T): T {
+        val isResultSet = stmt.execute()
+        val value = op(stmt, isResultSet)
+        context.withGeneratedKeys?.invoke(stmt.generatedKeys)
+        if (context.autoclose) stmt.connection.close()
+        return value
+    }
+
+    infix fun <T> update(op: PreparedStatement.(Int) -> T): T {
+        val updated = stmt.executeUpdate()
+        context.withGeneratedKeys?.invoke(stmt.generatedKeys)
+        val value = op(stmt, updated)
+        if (context.autoclose) stmt.connection.close()
+        return value
+    }
+
+    infix fun <T> single(op: ResultSet.() -> T): T = execute {
+        single(op)
+    }
+
+    infix fun <T> first(op: ResultSet.() -> T): T? = execute {
+        first(op)
+    }
+
+    infix fun <T> list(op: ResultSet.() -> T): List<T> = execute {
+        list(op)
+    }
+
+    infix fun <T> sequence(op: ResultSet.() -> T): Sequence<T>
+            = ResultSetIterator(context.autoclose, stmt.executeQuery(), op).asSequence()
+}
+
+fun Connection.query(autoclose: Boolean = false, sqlOp: QueryContext.() -> String): QueryResult {
+    val context = QueryContext(autoclose)
     val sql = sqlOp(context)
-    val stmt = prepareStatement(sql)
+
+    val keyStrategy = if(context.withGeneratedKeys == null) PreparedStatement.NO_GENERATED_KEYS
+    else PreparedStatement.RETURN_GENERATED_KEYS
+
+    val stmt = prepareStatement(sql, keyStrategy)
     context.params.forEachIndexed { index, param ->
         val pos = index + 1
         if (param.type != null) {
@@ -77,24 +115,16 @@ fun Connection.query(sqlOp: SqlContext.() -> String): PreparedStatement {
             }
         }
     }
-    return stmt
+    return QueryResult(context, stmt)
 }
 
-fun DataSource.query(sqlOp: SqlContext.() -> String) = connection.query(sqlOp)
-fun DataSource.execute(sqlOp: SqlContext.() -> String) = connection.execute(sqlOp)
-fun DataSource.update(sqlOp: SqlContext.() -> String) = connection.update(sqlOp)
-fun DataSource.delete(sqlOp: SqlContext.() -> String) = connection.delete(sqlOp)
-fun DataSource.insert(sqlOp: SqlContext.() -> String) = connection.insert(sqlOp)
+fun Connection.execute(autoclose: Boolean = false, sqlOp: QueryContext.() -> String): Boolean = query(autoclose, sqlOp).execute { it }
+fun Connection.update(autoclose: Boolean = false, sqlOp: QueryContext.() -> String): Int = query(autoclose, sqlOp).update { it }
 
-fun Connection.execute(sqlOp: SqlContext.() -> String) = query(sqlOp).execute()
-fun Connection.update(sqlOp: SqlContext.() -> String) = query(sqlOp).update()
-fun Connection.delete(sqlOp: SqlContext.() -> String) = query(sqlOp).delete()
-fun Connection.insert(sqlOp: SqlContext.() -> String) = query(sqlOp).insert()
-operator fun Connection.invoke(sqlOp: SqlContext.() -> String) = query(sqlOp)
+fun DataSource.query(sqlOp: QueryContext.() -> String): QueryResult = connection.query(true, sqlOp)
+fun DataSource.execute(sqlOp: QueryContext.() -> String): Boolean = connection.execute(true, sqlOp)
+fun DataSource.update(sqlOp: QueryContext.() -> String): Int = connection.update(true, sqlOp)
 
-fun PreparedStatement.delete(): Int = executeUpdate()
-fun PreparedStatement.update(): Int = executeUpdate()
-fun PreparedStatement.insert(): Int = executeUpdate()
 
 /**
  * Execute the query and transform each result set entry via the supplied function.
@@ -107,16 +137,19 @@ infix fun <T> PreparedStatement.list(op: ResultSet.() -> T): List<T> {
     return list
 }
 
-class ResultSetIterator<out T>(val rs: ResultSet, val op: ResultSet.() -> T) : Iterator<T> {
-    override fun hasNext() = !rs.isLast
+class ResultSetIterator<out T>(val autoclose: Boolean, val rs: ResultSet, val op: ResultSet.() -> T) : Iterator<T> {
+    override fun hasNext() : Boolean {
+        val isLast = rs.isLast
+        if (isLast && autoclose)
+            rs.statement.connection.close()
+        return !isLast
+    }
+
     override fun next(): T {
         rs.next()
         return op(rs)
     }
 }
-
-infix fun <T> PreparedStatement.sequence(op: ResultSet.() -> T): Sequence<T>
-        = ResultSetIterator(executeQuery(), op).asSequence()
 
 /**
  * Execute the query and transform the first result set entry via the supplied function.
@@ -154,4 +187,3 @@ fun <T : AutoCloseable, R> T.use(block: T.() -> R): R {
 }
 
 fun <T> DataSource.use(block: Connection.() -> T) = connection.use(block)
-operator fun DataSource.invoke(sqlOp: SqlContext.() -> String) = query(sqlOp)
