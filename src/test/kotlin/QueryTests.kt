@@ -1,4 +1,7 @@
-import kdbc.*
+import kdbc.asInt
+import kdbc.execute
+import kdbc.query
+import kdbc.transaction
 import org.h2.jdbcx.JdbcDataSource
 import org.junit.Assert
 import org.junit.Assert.assertEquals
