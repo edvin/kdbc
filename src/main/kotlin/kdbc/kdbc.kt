@@ -157,22 +157,23 @@ class ResultSetIterator<out T>(val autoclose: Boolean, val rs: ResultSet, val op
     }
 }
 
-fun <T : AutoCloseable, R> T.use(block: T.() -> R): R {
-    var closed = false
+fun <R> Connection.use(transactional: Boolean = false, block: Connection.() -> R): R {
+    val wasAutoCommit = autoCommit
+    if (transactional && wasAutoCommit) autoCommit = false
+    var failed = false
     try {
         return block(this)
     } catch (e: Exception) {
-        closed = true
-        try {
-            this.close()
-        } catch (closeException: Exception) {
-        }
+        failed = true
         throw e
     } finally {
-        if (!closed) {
-            this.close()
+        if (transactional) {
+            if (failed) rollback() else commit()
         }
+        this.close()
     }
 }
 
-fun <T> DataSource.use(block: Connection.() -> T) = connection.use(block)
+fun <T> DataSource.use(transactional: Boolean = false, block: Connection.() -> T) = connection.use(transactional, block)
+fun <T> DataSource.transaction(block: Connection.() -> T) = connection.use(true, block)
+fun <T> Connection.transaction(block: Connection.() -> T) = use(true, block)

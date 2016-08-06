@@ -1,7 +1,9 @@
 import kdbc.execute
 import kdbc.query
+import kdbc.transaction
 import kdbc.update
 import org.h2.jdbcx.JdbcDataSource
+import org.junit.Assert
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.sql.ResultSet
@@ -101,4 +103,18 @@ class QueryTests {
         }
     }
 
+    @Test
+    fun transaction_rollback() {
+        try {
+            db.transaction {
+                execute { "UPDATE customers SET name = 'Blah' WHERE id = 1" }
+                execute { "SELECT i_will_fail" }
+            }
+        } catch (ex: SQLException) {
+            // Expected
+            println("As expected")
+        }
+        val customer = db.query { "SELECT * FROM customers WHERE id = 1" } single { Customer(this) }
+        Assert.assertNotEquals("Name should not be changed", "Blah", customer.name)
+    }
 }
