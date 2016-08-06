@@ -24,7 +24,7 @@ class QueryTests {
     }
 
     fun getCustomerById(id: Int): Customer = db {
-        "SELECT * FROM customers WHERE id = ${p(id)}"
+        "SELECT * FROM customers WHERE id = ${p(id)}".intern()
     } single {
         Customer(getInt("id"), getString("name"))
     }

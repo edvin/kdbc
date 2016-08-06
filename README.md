@@ -1,4 +1,4 @@
-# JDBC DSL for Kotlin
+# SQL DSL for Kotlin
 
 KDBC is a simple, lightweight and elegant DSL for SQL Queries in Kotlin. The mini-framework
 is centered around extension functions to the `java.sql.Connection` class, extending it
@@ -41,7 +41,7 @@ Let's define a DAO function to query for customers by id and return a fully mapp
 ```
 
 The `query` function is an extension on `java.sql.Connection`. It takes a function that should create an SQL query string.
-It supports interpolating variables via the '${p()}' parameter function. This function returns a `PreparedStatement` object. 
+It supports interpolating variables via the `${p()}` parameter function. This function returns a `PreparedStatement` object. 
 On this object you can either call `executeQuery` to access the ResultSet, or use any of the convenience functions `list`, `single` or
 `first` that operates on the ResultSet and lets you map the result set to a domain object. In the example above,
 the `id` and `name` columns are extracted and passed to the `Customer` data class constructor.

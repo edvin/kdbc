@@ -13,9 +13,10 @@ import javax.sql.DataSource
 
 /**
  * Create a ParameterizedStatement using the given query. Example:
+ *     val id = 42
  *
- *     connection.query("SELECT * FROM customer WHERE id = :id") {
- *        param("id", 42)
+ *     connection.query {
+ *      "SELECT * FROM customer WHERE id = ${p(id)}"
  *     }
  *
  */
