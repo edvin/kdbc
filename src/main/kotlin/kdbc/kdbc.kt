@@ -11,6 +11,7 @@ import java.sql.SQLException
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 import javax.sql.DataSource
 
@@ -121,9 +122,11 @@ fun Connection.query(autoclose: Boolean = false, sqlOp: QueryContext.() -> Strin
                 stmt.setObject(pos, param.value, param.type)
         } else {
             when (param.value) {
+                is UUID -> stmt.setObject(pos, param.value)
                 is Int -> stmt.setInt(pos, param.value)
                 is String -> stmt.setString(pos, param.value)
                 is Double -> stmt.setDouble(pos, param.value)
+                is Boolean -> stmt.setBoolean(pos, param.value)
                 is Float -> stmt.setFloat(pos, param.value)
                 is Long -> stmt.setLong(pos, param.value)
                 is LocalTime -> stmt.setTime(pos, java.sql.Time.valueOf(param.value))
