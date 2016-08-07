@@ -27,11 +27,45 @@ import javax.sql.DataSource
 class QueryContext(val autoclose: Boolean) {
     class Param(val value: Any?, val type: Int? = null)
 
+    val sql = StringBuilder()
+
     val params = mutableListOf<Param>()
     var withGeneratedKeys: (ResultSet.(Int) -> Unit)? = null
 
     infix fun generatedKeys(op: ResultSet.(Int) -> Unit) {
         withGeneratedKeys = op
+    }
+
+    fun SELECT(string: String) : String {
+        sql.append("SELECT " + string)
+        return ""
+    }
+
+    fun FROM(string: String) : String {
+        sql.append(" FROM " + string)
+        return ""
+    }
+
+    fun UPDATE(op: QueryContext.() -> String): String {
+        sql.append("UPDATE " + op())
+        return ""
+    }
+
+    fun INSERT(op: QueryContext.() -> String): String {
+        sql.append("INSERT " + op())
+        return ""
+    }
+
+    fun DELETE(op: QueryContext.() -> String): String {
+        sql.append("DELETE " + op())
+        return ""
+    }
+
+    fun WHERE(op: QueryBlock.() -> Unit): String {
+        val s = QueryBlock()
+        op(s)
+        if (!s.isEmpty()) s.insert(0, " WHERE ")
+        return s.toString()
     }
 
     /**
@@ -67,7 +101,6 @@ class QueryContext(val autoclose: Boolean) {
         params.add(Param(this))
         return "?"
     }
-
 }
 
 class QueryResult(val context: QueryContext, val stmt: PreparedStatement) {
@@ -109,7 +142,8 @@ class QueryResult(val context: QueryContext, val stmt: PreparedStatement) {
 
 fun Connection.query(autoclose: Boolean = false, sqlOp: QueryContext.() -> String): QueryResult {
     val context = QueryContext(autoclose)
-    val sql = sqlOp(context)
+    val last = sqlOp(context)
+    val sql = context.sql.toString() + last
 
     val keyStrategy = if (context.withGeneratedKeys != null) PreparedStatement.RETURN_GENERATED_KEYS
     else PreparedStatement.NO_GENERATED_KEYS
@@ -137,6 +171,7 @@ fun Connection.query(autoclose: Boolean = false, sqlOp: QueryContext.() -> Strin
                 is LocalDateTime -> stmt.setTimestamp(pos, java.sql.Timestamp.valueOf(param.value))
                 is BigDecimal -> stmt.setBigDecimal(pos, param.value)
                 is InputStream -> stmt.setBinaryStream(pos, param.value)
+                is Enum<*> -> stmt.setObject(pos, param.value)
                 else -> throw SQLException("Don't know how to handle parameters of type ${param.value?.javaClass}")
             }
         }
@@ -150,7 +185,7 @@ fun DataSource.query(sqlOp: QueryContext.() -> String): QueryResult = connection
 fun DataSource.execute(sqlOp: QueryContext.() -> String): Boolean = connection.execute(true, sqlOp)
 
 class ResultSetIterator<out T>(val autoclose: Boolean, val rs: ResultSet, val op: ResultSet.() -> T) : Iterator<T> {
-    override fun hasNext() : Boolean {
+    override fun hasNext(): Boolean {
         val isLast = rs.isLast
         if (isLast && autoclose)
             rs.statement.connection.close()
@@ -192,3 +227,51 @@ val ResultSet.asFloat: Float get() = getFloat(1)
 val ResultSet.asLocalTime: LocalTime get() = getTime(1).toLocalTime()
 val ResultSet.asLocalDate: LocalDate get() = getDate(1).toLocalDate()
 val ResultSet.asLocalDateTime: LocalDateTime get() = getTimestamp(1).toLocalDateTime()
+fun ResultSet.getUUID(label: String) = UUID.fromString(getString(label))
+
+class QueryBlock {
+    private val content = StringBuilder()
+    private var firstAndOrSkipped = false
+
+    fun append(value: String) = content.append(value)
+    fun isNotEmpty() = content.isNotEmpty()
+    fun insert(pos: Int, value: String) = content.insert(pos, value)
+    fun isEmpty() = content.isEmpty()
+    override fun toString() = content.toString()
+
+    fun QueryBlock.AND(op: QueryBlock.() -> Unit) {
+        val s = QueryBlock()
+        op(s)
+        if (s.isNotEmpty()) {
+            addWordIfNotFirst("AND")
+            append("(${s.toString()})")
+        }
+    }
+
+    private fun addWordIfNotFirst(word: String) {
+        if (firstAndOrSkipped) {
+            append(" $word ")
+        } else {
+            firstAndOrSkipped = true
+        }
+    }
+
+    fun AND(s: String) {
+        addWordIfNotFirst("AND")
+        append(s)
+    }
+
+    fun OR(s: String) {
+        addWordIfNotFirst("OR")
+        append(s)
+    }
+
+}
+
+inline fun <T, R> Iterable<T>.OR(transform: (T) -> R): String {
+    return map(transform).joinToString { " OR " }
+}
+
+inline fun <T, R> Iterable<T>.AND(transform: (T) -> R): String {
+    return map(transform).joinToString { " AND " }
+}
