@@ -111,7 +111,10 @@ fun Connection.query(autoclose: Boolean = false, sqlOp: QueryContext.() -> Strin
     val context = QueryContext(autoclose)
     val sql = sqlOp(context)
 
-    val stmt = prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)
+    val keyStrategy = if (context.withGeneratedKeys != null) PreparedStatement.RETURN_GENERATED_KEYS
+    else PreparedStatement.NO_GENERATED_KEYS
+
+    val stmt = prepareStatement(sql, keyStrategy)
 
     context.params.forEachIndexed { index, param ->
         val pos = index + 1
