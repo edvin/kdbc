@@ -1,61 +1,34 @@
 import kdbc.execute
-import kdbc.transaction
+import models.Customer
 import models.SelectCustomer
+import models.UpdateCustomer
 import org.h2.jdbcx.JdbcDataSource
-import org.junit.Assert
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import java.sql.ResultSet
-import java.sql.SQLException
-import javax.sql.DataSource
-
-data class Customer(var id: Int? = null, var name: String? = null) {
-    constructor(rs: ResultSet) : this(rs.getInt("id"), rs.getString("name"))
-}
 
 class QueryTests {
-    companion object {
-        private val db: DataSource
-
-        init {
-            db = JdbcDataSource().apply {
-                setURL("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1")
-                execute("CREATE TABLE customers (id integer not null primary key auto_increment, name text)")
-                execute("INSERT INTO customers (name) VALUES ('John')")
-                execute("INSERT INTO customers (name) VALUES ('Jill')")
-            }
-        }
+    private val db = JdbcDataSource().apply {
+        setURL("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1")
+        execute("CREATE TABLE customer (id integer not null primary key auto_increment, name text)")
+        execute("INSERT INTO customer (name) VALUES ('John')")
+        execute("INSERT INTO customer (name) VALUES ('Jill')")
     }
 
-//    fun getCustomerById(id: Int): Customer = db.query {
-//        "SELECT * FROM customers WHERE id = $id"
-//    } single {
-//        Customer(getInt("id"), getString("name"))
-//    }
+    @Test
+    fun queryTest() {
+        val john = SelectCustomer(db).byId(1)
+        assertEquals(1, john.id)
+        assertEquals("John", john.name)
+    }
 //
-//    @Test
-//    fun queryTest() {
-//        val john = getCustomerById(1)
-//        assertEquals(1, john.id)
-//        assertEquals("John", john.name)
-//    }
-//
-//    @Test
-//    fun updateTest() {
-//        val id = 1
-//        val name = "Johnnie"
-//
-//        db.execute {
-//            """UPDATE customers SET
-//            name = ${name.p}
-//            WHERE id = ${id.p}
-//            """
-//        }
-//
-//        val updatedName = getCustomerById(1).name
-//
-//        assertEquals("Johnnie", updatedName)
-//    }
+    @Test
+    fun updateTest() {
+        UpdateCustomer(Customer(1, "Johnnie")).execute(db)
+
+        val updatedName = SelectCustomer(db).byId(1).name
+
+        assertEquals("Johnnie", updatedName)
+    }
 //
 //    @Test
 //    fun insertTest() {
@@ -110,7 +83,4 @@ class QueryTests {
 //        Assert.assertNotEquals("Name should not be changed", "Blah", customer.name)
 //    }
 
-    @Test fun temp() {
-        println(SelectCustomer().search("x").render())
-    }
 }

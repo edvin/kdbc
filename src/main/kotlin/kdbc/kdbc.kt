@@ -4,10 +4,7 @@ package kdbc
 
 import java.io.InputStream
 import java.math.BigDecimal
-import java.sql.Connection
-import java.sql.PreparedStatement
-import java.sql.ResultSet
-import java.sql.SQLException
+import java.sql.*
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -272,15 +269,14 @@ abstract class Expr(sql: String? = null, val parent: Expr?) {
     fun SELECT(columns: Iterable<Column<*>>, op: (SelectExpr.() -> Unit)? = null) =
             add(SelectExpr(columns.toList(), this), op)
 
-    fun UPDATE(table: Table, op: SetExpr.() -> Unit): UpdateExpr {
+    fun <T: Table> UPDATE(table: T, op: SetExpr.() -> Unit): UpdateExpr {
         val updateExpr = add(UpdateExpr(table, this))
-        val setExpr = updateExpr.add(SetExpr(updateExpr))
-        op(setExpr)
+        updateExpr.add(SetExpr(updateExpr), op)
         return updateExpr
     }
 
-    fun INSERT(table: Table, op: (InsertExpr.() -> Unit)? = null) =
-            add(InsertExpr(table, this), op)
+    fun <T: Table> INSERT(table: T, op: InsertExpr.() -> Unit)
+        = add(InsertExpr(table, this), op)
 
     fun DELETE(table: Table, op: (DeleteExpr.() -> Unit)? = null) =
             add(DeleteExpr(table, this), op)
@@ -373,10 +369,37 @@ abstract class Delete : Query<Any>() {
     final override fun map(rs: ResultSet) = throw UnsupportedOperationException()
 }
 
-abstract class Query<out T> : Expr(null, null) {
+fun <Q : Query<*>> Q.db(db: Wrapper?): Q {
+    when (db) {
+        is Connection -> {
+            connection = db
+            close = false
+        }
+        is DataSource -> {
+            connection = db.connection
+            close = true
+        }
+        null -> { }
+        else -> throw SQLException("db must be either java.sql.Connection or java.sql.DataSource")
+    }
+    return this
+}
+
+fun <Q: Query<*>> Q.close(close: Boolean): Q {
+    this.close = close
+    return this
+}
+
+abstract class Query<out T>(db: Wrapper? = null) : Expr(null, null) {
     private var withGeneratedKeys: (ResultSet.(Int) -> Unit)? = null
     val tables = mutableListOf<Table>()
     lateinit var stmt: PreparedStatement
+    var connection: Connection? = null
+    var close = false
+
+    init {
+        db(db)
+    }
 
     /**
      * Convert a result row into the query result object. Instead of extracting
@@ -411,25 +434,21 @@ abstract class Query<out T> : Expr(null, null) {
 
     override fun render(s: StringBuilder) = renderChildren(s)
 
-    fun first(connection: Connection, close: Boolean = false) = firstOrNull(connection, close)!!
-    fun first(datasource: DataSource, close: Boolean = true) = first(datasource.connection, close)
-
-    fun firstOrNull(connection: Connection, close: Boolean = false): T? {
-        val rs = requireResultSet(close, connection)
+    fun first() = firstOrNull()!!
+    fun firstOrNull(): T? {
+        val rs = requireResultSet()
         try {
             return if (rs.next()) {
                 tables.forEach { it.rs = rs }
                 map(rs)
             } else null
         } finally {
-            checkClose(close, connection)
+            checkClose()
         }
     }
 
-    fun firstOrNull(datasource: DataSource, close: Boolean = true) = firstOrNull(datasource.connection, close)
-
-    fun list(connection: Connection, close: Boolean = false): List<T> {
-        val rs = requireResultSet(close, connection)
+    fun list(): List<T> {
+        val rs = requireResultSet()
         val list = mutableListOf<T>()
         while (rs.next()) {
             tables.forEach { it.rs = rs }
@@ -438,23 +457,27 @@ abstract class Query<out T> : Expr(null, null) {
         try {
             return list
         } finally {
-            checkClose(close, connection)
+            checkClose()
         }
     }
 
-    fun list(datasource: DataSource, close: Boolean = true) = list(datasource.connection, close).toList()
-
-    private fun requireResultSet(close: Boolean, connection: Connection): ResultSet {
-        if (!execute(connection, false)) {
-            checkClose(close, connection)
-            throw SQLException("List was requested but query returned no ResultSet.\n${describe()}")
+    private fun requireResultSet(): ResultSet {
+        val configuredToClose = close
+        close = false
+        try {
+            val hasResultSet = execute()
+            if (!hasResultSet) {
+                checkClose()
+                throw SQLException("List was requested but query returned no ResultSet.\n${describe()}")
+            }
+        } finally {
+            close = configuredToClose
         }
-
         return stmt.resultSet
     }
 
-    private fun checkClose(close: Boolean, connection: Connection) {
-        if (close) logErrors("Closing connection") { connection.close() }
+    private fun checkClose() {
+        if (close) logErrors("Closing connection") { connection!!.close() }
     }
 
     private fun logErrors(msg: String, op: () -> Unit) {
@@ -465,24 +488,22 @@ abstract class Query<out T> : Expr(null, null) {
         }
     }
 
-    fun execute(datasource: DataSource, close: Boolean = true)
-            = execute(datasource.connection, close)
-
     /**
      * Gather parameters, render the SQL, prepare the statement and execute the query
      */
-    fun execute(connection: Connection, close: Boolean = false): Boolean {
+    fun execute(db: Wrapper? = null): Boolean {
+        if (db != null) db(db)
         try {
             val sql = render()
             val keyStrategy = if (withGeneratedKeys != null) PreparedStatement.RETURN_GENERATED_KEYS
             else PreparedStatement.NO_GENERATED_KEYS
-            stmt = connection.prepareStatement(sql, keyStrategy)
+            stmt = connection!!.prepareStatement(sql, keyStrategy)
             applyParameters()
             val hasResultSet = stmt.execute()
             handleGeneratedKeys()
             return hasResultSet
         } finally {
-            if (close) connection.close()
+            if (close) connection!!.close()
         }
     }
 
