@@ -1,4 +1,4 @@
-@file:Suppress("UNCHECKED_CAST")
+@file:Suppress("UNCHECKED_CAST", "unused", "HasPlatformType")
 
 package kdbc
 
@@ -13,190 +13,571 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.logging.Level
+import java.util.logging.Logger
 import javax.sql.DataSource
+import kotlin.properties.ReadOnlyProperty
+import kotlin.reflect.KClass
+import kotlin.reflect.KProperty
 
-/**
- * Create a ParameterizedStatement using the given query. Example:
- *     val id = 42
- *
- *     connection.query {
- *      "SELECT * FROM customer WHERE id = ${p(id)}"
- *     }
- *
- */
-class QueryContext(val autoclose: Boolean) {
-    class Param(val value: Any?, val type: Int? = null)
+internal val logger = Logger.getLogger("KDBC")
 
-    val sql = StringBuilder()
+class JoinDiscriminatorExpr(val discriminator: String, parent: Expr) : Expr(null, parent) {
+    override fun render(s: StringBuilder) {
+        s.append("\n$discriminator")
+        super.render(s)
+    }
+}
+class JoinOnExpr(parent: Expr) : Expr(null, parent)
 
-    val params = mutableListOf<Param>()
-    var withGeneratedKeys: (ResultSet.(Int) -> Unit)? = null
-
-    infix fun generatedKeys(op: ResultSet.(Int) -> Unit) {
-        withGeneratedKeys = op
+class JoinExpr(val table: Table, parent: Expr) : Expr(null, parent) {
+    init {
+        query.addTable(table)
     }
 
-    fun SELECT(string: String) : String {
-        sql.append("SELECT " + string)
-        return ""
+    infix fun ON(op: (JoinOnExpr) -> Unit): JoinExpr {
+        add(StringExpr("ON", this))
+        add(JoinOnExpr(this), op)
+        return this
     }
 
-    fun FROM(string: String) : String {
-        sql.append(" FROM " + string)
-        return ""
+    override fun render(s: StringBuilder) {
+        if (parent !is JoinDiscriminatorExpr) s.append("\n")
+        s.append("JOIN ").append(table)
+        super.render(s)
+    }
+}
+
+class SelectExpr(val columns: List<Column<*>>, parent: Expr) : Expr(null, parent) {
+    override fun render(s: StringBuilder) {
+        s.append("SELECT ")
+        s.append(columns.map { it.asAlias }.joinToString(", "))
+        super.render(s)
+    }
+}
+
+class InsertExpr(val table: Table, parent: Expr) : Expr(null, parent) {
+    override fun render(s: StringBuilder) {
+        s.append("INSERT INTO ${table.tableName} (")
+        val pairs = expressions.map { it as? ComparisonExpr }.filterNotNull()
+        s.append(pairs.map { it.column }.joinToString(", "))
+        s.append(") VALUES (")
+        s.append(pairs.map { "?" }.joinToString(", "))
+        s.append(")")
+    }
+}
+
+class UpdateExpr(val table: Table, parent: Expr) : Expr(null, parent) {
+    override fun render(s: StringBuilder) {
+        s.append("UPDATE ").append(table.tableName).append(" ")
+        super.render(s)
+    }
+}
+
+// TODO: Type safe
+class GroupByExpr(sql: String? = null, parent: Expr) : Expr(sql, parent) {
+    override fun render(s: StringBuilder) {
+        s.append("\nGROUP BY ")
+        super.render(s)
+    }
+}
+
+class HavingExpr(parent: Expr) : Expr(null, parent) {
+    override fun render(s: StringBuilder) {
+        s.append("\nHAVING ")
+        super.render(s)
+    }
+}
+
+class SetExpr(parent: Expr) : Expr(null, parent) {
+    override fun render(s: StringBuilder) {
+        s.append("SET ")
+        expressions.forEachIndexed { i, expr ->
+            prefixWithSpace(s)
+            expr.render(s)
+            if (i < expressions.size - 1) s.append(",\n")
+        }
+    }
+}
+
+class DeleteExpr(val table: Table, parent: Expr) : Expr(null, parent) {
+    override fun render(s: StringBuilder) {
+        s.append("DELETE FROM $table ")
+        super.render(s)
+    }
+}
+
+class FromExpr(val fromTables: List<Table>, parent: Expr) : Expr(null, parent) {
+    init {
+        query.apply {
+            fromTables.forEach { addTable(it) }
+        }
     }
 
-    fun UPDATE(op: QueryContext.() -> String): String {
-        sql.append("UPDATE " + op())
-        return ""
+    override fun render(s: StringBuilder) {
+        if (parent is Query<*>) s.append("\n")
+        s.append("FROM ")
+        if (fromTables.isNotEmpty())
+            s.append(fromTables.joinToString(", "))
+        super.render(s)
+    }
+}
+
+class WhereExpr(parent: Expr) : Expr(null, parent) {
+    override fun render(s: StringBuilder) {
+        if (expressions.isEmpty()) return
+        if (parent is Query<*>) s.append("\n")
+        s.append("WHERE ")
+        super.render(s)
+    }
+}
+
+class InExpr(val column: Column<*>, parent: Expr) : Expr(null, parent) {
+    override fun render(s: StringBuilder) {
+        s.append(column.fullName)
+        s.append(" IN (")
+        super.render(s)
+        s.append(")")
+    }
+}
+
+class AndExpr(sql: String? = null, parent: Expr) : Expr(sql, parent) {
+    override fun render(s: StringBuilder) {
+        if (expressions.isEmpty()) return
+        if ((parent is WhereExpr || parent is AndExpr || parent is OrExpr) && parent.expressions.indexOf(this) == 0) {
+            // Skip adding AND for the first parent of WHERE/AND/OR
+        } else {
+            s.append("AND ")
+        }
+
+        val wrap = expressions.size > 1
+        if (wrap) s.append("(")
+        super.render(s)
+        if (wrap) s.append(")")
+    }
+}
+
+class OrExpr(sql: String? = null, parent: Expr) : Expr(sql, parent) {
+    override fun render(s: StringBuilder) {
+        if (expressions.isEmpty()) return
+        if ((parent is WhereExpr || parent is AndExpr || parent is OrExpr) && parent.expressions.indexOf(this) == 0) {
+            // Skip adding OR for the first parent of WHERE/AND/OR
+        } else {
+            s.append("OR ")
+        }
+        val wrap = expressions.size > 1
+        if (wrap) s.append("(")
+        super.render(s)
+        if (wrap) s.append(")")
     }
 
-    fun INSERT(op: QueryContext.() -> String): String {
-        sql.append("INSERT " + op())
-        return ""
+}
+
+class StringExpr(val sql: String, parent: Expr) : Expr(parent = parent) {
+    override fun render(s: StringBuilder) {
+        s.append(sql)
+    }
+}
+
+class ComparisonExpr(val column: Any?, val sign: String, val value: Any?, parent: Expr) : Expr(parent = parent) {
+    val param = Param(if (value is TextTransform) value.value else value)
+    val transform: TextTransform.Type? = if (value is TextTransform) value.type else null
+
+    override fun render(s: StringBuilder) {
+        s.append(column).append(" ").append(sign)
+        val spacer = if (transform != null) "" else " "
+        if (transform != null) s.append(" ").append(transform).append("(")
+        if (value is Column<*>) s.append(spacer).append(value.fullName)
+        else s.append(spacer).append("?")
+        if (transform != null) s.append(")")
+    }
+}
+
+abstract class Expr(sql: String? = null, val parent: Expr?) {
+    companion object {
+        val NoSpaceWhenLastChar = arrayOf(' ', '(', ')', '\n')
     }
 
-    fun DELETE(op: QueryContext.() -> String): String {
-        sql.append("DELETE " + op())
-        return ""
+    val query: Query<*> get() = if (this is Query<*>) this else if (parent is Query<*>) parent else parent!!.query
+
+    val expressions = mutableListOf<Expr>()
+
+    init {
+        if (sql != null) add(StringExpr(sql, this))
     }
 
-    fun WHERE(op: QueryBlock.() -> Unit): String {
-        val s = QueryBlock()
-        op(s)
-        if (!s.isEmpty()) s.insert(0, " WHERE ")
+    fun gatherParams(params: MutableList<Param>) {
+        if (this is ComparisonExpr) params.add(param)
+        expressions.forEach { it.gatherParams(params) }
+    }
+
+    internal fun <T : Expr> add(expression: T, op: (T.() -> Unit)? = null): T {
+        op?.invoke(expression)
+        expressions.add(expression)
+        return expression
+    }
+
+    fun render(): String {
+        val s = StringBuilder()
+        render(s)
         return s.toString()
     }
 
-    /**
-     * Set value for named parameter, which can be null. JDBC Type must be given explicitly.
-     *
-     * @see java.sql.Types
-     *
-     */
-    fun p(value: Any?, type: Int): String {
-        params.add(Param(value, type))
-        return "?"
+    open fun render(s: StringBuilder) {
+        renderChildren(s)
     }
 
-    /**
-     * Set non-null value for named parameter.
-     */
-    infix fun p(value: Any?): String {
-        params.add(Param(value))
-        return "?"
+    protected fun renderChildren(s: StringBuilder) {
+        expressions.forEach {
+            prefixWithSpace(s)
+            it.render(s)
+        }
     }
 
-    operator fun Any?.not(): String {
-        params.add(Param(this))
-        return "?"
+    protected fun prefixWithSpace(s: StringBuilder) {
+        if (s.isNotEmpty() && !NoSpaceWhenLastChar.contains(s.last()))
+            s.append(" ")
     }
 
-    operator fun Any?.invoke(): String {
-        params.add(Param(this))
-        return "?"
+    fun append(sql: String) = add(StringExpr(sql, this))
+    operator fun String.unaryPlus() = append(this)
+
+    infix fun Expr.JOIN(table: Table): JoinExpr {
+        query.addTable(table)
+        return add(JoinExpr(table, this))
     }
 
-    val Any?.p: String get() {
-        params.add(Param(this))
-        return "?"
+    val Expr.LEFT: JoinDiscriminatorExpr get() = add(JoinDiscriminatorExpr("LEFT", this))
+    val Expr.RIGHT: JoinDiscriminatorExpr get() = add(JoinDiscriminatorExpr("RIGHT", this))
+    val Expr.OUTER: JoinDiscriminatorExpr get() = add(JoinDiscriminatorExpr("OUTER", this))
+    val Expr.INNER: JoinDiscriminatorExpr get() = add(JoinDiscriminatorExpr("INNER", this))
+
+    infix fun JoinExpr.OUTER(joinExpr: JoinExpr): JoinExpr {
+        joinExpr.expressions.add(0, JoinDiscriminatorExpr("OUTER", joinExpr))
+        return joinExpr
+    }
+
+    infix fun JoinExpr.INNER(joinExpr: JoinExpr): JoinExpr {
+        joinExpr.expressions.add(0, JoinDiscriminatorExpr("INNER", joinExpr))
+        return joinExpr
+    }
+
+    fun GROUPBY(sql: String) = add(GroupByExpr(sql, this))
+
+    fun HAVING(op: HavingExpr.() -> Unit) = add(HavingExpr(this), op)
+
+    fun SELECT(vararg columns: Column<*>, op: (SelectExpr.() -> Unit)? = null) =
+            add(SelectExpr(columns.toList(), this), op)
+
+    fun SELECT(columns: Iterable<Column<*>>, op: (SelectExpr.() -> Unit)? = null) =
+            add(SelectExpr(columns.toList(), this), op)
+
+    fun UPDATE(table: Table, op: SetExpr.() -> Unit): UpdateExpr {
+        val updateExpr = add(UpdateExpr(table, this))
+        val setExpr = updateExpr.add(SetExpr(updateExpr))
+        op(setExpr)
+        return updateExpr
+    }
+
+    fun INSERT(table: Table, op: (InsertExpr.() -> Unit)? = null) =
+            add(InsertExpr(table, this), op)
+
+    fun DELETE(table: Table, op: (DeleteExpr.() -> Unit)? = null) =
+            add(DeleteExpr(table, this), op)
+
+    fun FROM(vararg tables: Table, op: (FromExpr.() -> Unit)? = null) =
+            add(FromExpr(tables.toList(), this), op)
+
+    fun WHERE(op: WhereExpr.() -> Unit) =
+            add(WhereExpr(this), op)
+
+    infix fun Column<*>.IN(op: InExpr.() -> Unit) {
+        add(InExpr(this, parent!!), op)
+    }
+
+    fun AND(sql: String? = null, op: (AndExpr.() -> Unit)? = null) =
+            add(AndExpr(sql, this), op)
+
+    fun OR(sql: String? = null, op: (OrExpr.() -> Unit)? = null) =
+            add(OrExpr(sql, this), op)
+
+    infix fun Expr.assuming(predicate: Boolean) {
+        if (!predicate) parent?.expressions?.remove(this)
+    }
+
+    infix fun Expr.assumingNotNull(o: Any?) = assuming(o != null)
+
+    infix fun ComparisonExpr.type(type: Int): ComparisonExpr {
+        param.type = type
+        return this
+    }
+
+    infix fun <T> ComparisonExpr.handler(handler: TypeHandler<T>): ComparisonExpr {
+        // Same issues as above
+        param.handler = handler as TypeHandler<Any?>
+        return this
+    }
+
+    infix fun <T : Any> ComparisonExpr.handler(type: KClass<T>): ComparisonExpr {
+        // Same issues as above
+        param.handler = typeHandlers[type] as TypeHandler<Any?>
+        return this
+    }
+
+    infix fun Any.TO(param: Any?) = createComparison(this, param, "=")
+    infix fun Any.EQ(param: Any?) = createComparison(this, param, "=")
+    infix fun Any.LIKE(param: Any?) = createComparison(this, param, "LIKE")
+    infix fun Any.GT(param: Any?) = createComparison(this, param, ">")
+    infix fun Any.GTE(param: Any?) = createComparison(this, param, ">=")
+    infix fun Any.LT(param: Any?) = createComparison(this, param, "<")
+    infix fun Any.LTE(param: Any?) = createComparison(this, param, "<=")
+
+    fun UPPER(value: Any?) = TextTransform(TextTransform.Type.UPPER, value)
+    fun LOWER(value: Any?) = TextTransform(TextTransform.Type.LOWER, value)
+
+    private fun createComparison(receiver: Any?, param: Any?, sign: String)
+            = add(ComparisonExpr(receiver, sign, param, this@Expr))
+
+}
+
+class TextTransform(val type: Type, val value: Any?) {
+    enum class Type { UPPER, LOWER }
+
+    override fun toString(): String {
+        val s = StringBuilder()
+        s.append("$type($value)")
+        return s.toString()
     }
 }
 
-class QueryResult(val context: QueryContext, val stmt: PreparedStatement) {
+class Param(val value: Any?) {
+    var type: Int? = null
+    var handler: TypeHandler<Any?>? = null
 
-    infix fun <T> execute(op: PreparedStatement.(Boolean) -> T): T {
-        val isResultSet = stmt.execute()
-        val value = op(stmt, isResultSet)
-        handleGeneratedKeys()
-        if (context.autoclose) stmt.connection.close()
-        return value
+    override fun toString() = StringBuilder(value.toString()).let {
+        if (type != null) it.append(" (SQL Type $type)")
+        it.toString()
+    }
+
+}
+
+abstract class Insert : Query<Any>() {
+    final override fun map(rs: ResultSet) = throw UnsupportedOperationException()
+}
+
+abstract class Update : Query<Any>() {
+    final override fun map(rs: ResultSet) = throw UnsupportedOperationException()
+}
+
+abstract class Delete : Query<Any>() {
+    final override fun map(rs: ResultSet) = throw UnsupportedOperationException()
+}
+
+abstract class Query<out T> : Expr(null, null) {
+    private var withGeneratedKeys: (ResultSet.(Int) -> Unit)? = null
+    val tables = mutableListOf<Table>()
+    lateinit var stmt: PreparedStatement
+
+    /**
+     * Convert a result row into the query result object. Instead of extracting
+     * data from the supplied ResultSet you should extract the data from
+     * the Table instances you used to construct the query.
+     */
+    abstract fun map(rs: ResultSet): T
+
+    fun generatedKeys(op: ResultSet.(Int) -> Unit) {
+        withGeneratedKeys = op
+    }
+
+    /**
+     * Add table and configure alias if more than one table. Also configure alias for the first table if you add a second
+     */
+    fun addTable(table: Table) {
+        if (!tables.contains(table)) {
+            tables.add(table)
+            if (tables.size > 1) table.configureAlias()
+            if (tables.size == 2) tables.first().configureAlias()
+        }
+    }
+
+    private fun Table.configureAlias() {
+        if (tableAlias == null) {
+            if (tables.find { it.tableAlias == tableName } == null)
+                tableAlias = tableName
+            else
+                tableAlias = "${tableName}_${tables.indexOf(this) + 1}"
+        }
+    }
+
+    override fun render(s: StringBuilder) = renderChildren(s)
+
+    fun first(connection: Connection, close: Boolean = false) = firstOrNull(connection, close)!!
+    fun first(datasource: DataSource, close: Boolean = true) = first(datasource.connection, close)
+
+    fun firstOrNull(connection: Connection, close: Boolean = false): T? {
+        val rs = requireResultSet(close, connection)
+        try {
+            return if (rs.next()) {
+                tables.forEach { it.rs = rs }
+                map(rs)
+            } else null
+        } finally {
+            checkClose(close, connection)
+        }
+    }
+
+    fun firstOrNull(datasource: DataSource, close: Boolean = true) = firstOrNull(datasource.connection, close)
+
+    fun list(connection: Connection, close: Boolean = false): List<T> {
+        val rs = requireResultSet(close, connection)
+        val list = mutableListOf<T>()
+        while (rs.next()) {
+            tables.forEach { it.rs = rs }
+            list.add(map(rs))
+        }
+        try {
+            return list
+        } finally {
+            checkClose(close, connection)
+        }
+    }
+
+    fun list(datasource: DataSource, close: Boolean = true) = list(datasource.connection, close).toList()
+
+    private fun requireResultSet(close: Boolean, connection: Connection): ResultSet {
+        if (!execute(connection, false)) {
+            checkClose(close, connection)
+            throw SQLException("List was requested but query returned no ResultSet.\n${describe()}")
+        }
+
+        return stmt.resultSet
+    }
+
+    private fun checkClose(close: Boolean, connection: Connection) {
+        if (close) logErrors("Closing connection") { connection.close() }
+    }
+
+    private fun logErrors(msg: String, op: () -> Unit) {
+        try {
+            op()
+        } catch (ex: Throwable) {
+            logger.log(Level.WARNING, msg, ex)
+        }
+    }
+
+    fun execute(datasource: DataSource, close: Boolean = true)
+            = execute(datasource.connection, close)
+
+    /**
+     * Gather parameters, render the SQL, prepare the statement and execute the query
+     */
+    fun execute(connection: Connection, close: Boolean = false): Boolean {
+        try {
+            val sql = render()
+            val keyStrategy = if (withGeneratedKeys != null) PreparedStatement.RETURN_GENERATED_KEYS
+            else PreparedStatement.NO_GENERATED_KEYS
+            stmt = connection.prepareStatement(sql, keyStrategy)
+            applyParameters()
+            val hasResultSet = stmt.execute()
+            handleGeneratedKeys()
+            return hasResultSet
+        } finally {
+            if (close) connection.close()
+        }
     }
 
     private fun handleGeneratedKeys() {
-        if (context.withGeneratedKeys != null) {
+        withGeneratedKeys?.apply {
             val keysRs = stmt.generatedKeys
             val counter = AtomicInteger()
             while (keysRs.next())
-                context.withGeneratedKeys?.invoke(keysRs, counter.andIncrement)
+                this.invoke(keysRs, counter.andIncrement)
         }
     }
 
-    infix fun <T> single(op: ResultSet.() -> T): T = first(op) ?: throw SQLException("No result")
-
-    infix fun <T> first(op: ResultSet.() -> T): T? = execute {
-        val rs = resultSet
-        if (rs.next()) op(rs) else null
+    val params: List<Param> get() {
+        val list = mutableListOf<Param>()
+        gatherParams(list)
+        return list
     }
 
-    infix fun <T> list(op: ResultSet.() -> T): List<T> = execute {
-        val list = mutableListOf<T>()
-        val rs = resultSet
-        while (rs.next()) list.add(op(rs))
-        list
-    }
-
-    infix fun <T> sequence(op: ResultSet.() -> T): Sequence<T>
-            = ResultSetIterator(context.autoclose, stmt.executeQuery(), op).asSequence()
-}
-
-fun Connection.query(autoclose: Boolean = false, sqlOp: QueryContext.() -> String): QueryResult {
-    val context = QueryContext(autoclose)
-    val last = sqlOp(context)
-    val sql = context.sql.toString() + last
-
-    val keyStrategy = if (context.withGeneratedKeys != null) PreparedStatement.RETURN_GENERATED_KEYS
-    else PreparedStatement.NO_GENERATED_KEYS
-
-    val stmt = prepareStatement(sql, keyStrategy)
-
-    context.params.forEachIndexed { index, param ->
-        val pos = index + 1
-        if (param.type != null) {
-            if (param.value == null)
-                stmt.setNull(pos, param.type)
-            else
-                stmt.setObject(pos, param.value, param.type)
-        } else {
-            when (param.value) {
-                is UUID -> stmt.setObject(pos, param.value)
-                is Int -> stmt.setInt(pos, param.value)
-                is String -> stmt.setString(pos, param.value)
-                is Double -> stmt.setDouble(pos, param.value)
-                is Boolean -> stmt.setBoolean(pos, param.value)
-                is Float -> stmt.setFloat(pos, param.value)
-                is Long -> stmt.setLong(pos, param.value)
-                is LocalTime -> stmt.setTime(pos, java.sql.Time.valueOf(param.value))
-                is LocalDate -> stmt.setDate(pos, java.sql.Date.valueOf(param.value))
-                is LocalDateTime -> stmt.setTimestamp(pos, java.sql.Timestamp.valueOf(param.value))
-                is BigDecimal -> stmt.setBigDecimal(pos, param.value)
-                is InputStream -> stmt.setBinaryStream(pos, param.value)
-                is Enum<*> -> stmt.setObject(pos, param.value)
-                else -> throw SQLException("Don't know how to handle parameters of type ${param.value?.javaClass}")
+    fun applyParameters() {
+        val paramCounter = AtomicInteger(0)
+        params.forEach { param ->
+            if (param.value !is Column<*>) {
+                // TODO: Clean up type handler code when the TypeHandler interface has stabilized
+                val handler: TypeHandler<Any?>? = param.handler ?: if (param.value != null) typeHandlers[param.value.javaClass.kotlin] else null
+                applyParameter(handler, param, paramCounter.incrementAndGet(), param.value)
             }
         }
     }
-    return QueryResult(context, stmt)
-}
 
-fun Connection.execute(autoclose: Boolean = false, sqlOp: QueryContext.() -> String): Boolean = query(autoclose, sqlOp).execute { it }
-
-fun DataSource.query(sqlOp: QueryContext.() -> String): QueryResult = connection.query(true, sqlOp)
-fun DataSource.execute(sqlOp: QueryContext.() -> String): Boolean = connection.execute(true, sqlOp)
-
-class ResultSetIterator<out T>(val autoclose: Boolean, val rs: ResultSet, val op: ResultSet.() -> T) : Iterator<T> {
-    override fun hasNext(): Boolean {
-        val isLast = rs.isLast
-        if (isLast && autoclose)
-            rs.statement.connection.close()
-        return !isLast
+    private fun applyParameter(handler: TypeHandler<Any?>?, param: Param, pos: Int, value: Any?) {
+        if (handler != null) {
+            handler.setParam(stmt, pos, value)
+        } else if (param.type != null) {
+            if (param.value == null)
+                stmt.setNull(pos, param.type!!)
+            else
+                stmt.setObject(pos, value, param.type!!)
+        } else {
+            when (value) {
+                is UUID -> stmt.setObject(pos, value)
+                is Int -> stmt.setInt(pos, value)
+                is String -> stmt.setString(pos, value)
+                is Double -> stmt.setDouble(pos, value)
+                is Boolean -> stmt.setBoolean(pos, value)
+                is Float -> stmt.setFloat(pos, value)
+                is Long -> stmt.setLong(pos, value)
+                is LocalTime -> stmt.setTime(pos, java.sql.Time.valueOf(value))
+                is LocalDate -> stmt.setDate(pos, java.sql.Date.valueOf(value))
+                is LocalDateTime -> stmt.setTimestamp(pos, java.sql.Timestamp.valueOf(value))
+                is BigDecimal -> stmt.setBigDecimal(pos, value)
+                is InputStream -> stmt.setBinaryStream(pos, value)
+                is Enum<*> -> stmt.setObject(pos, value)
+                null -> throw SQLException("Parameter #$pos is null, you must provide a handler or sql type.\n${describe()}")
+                else -> throw SQLException("Don't know how to handle parameters of type ${value.javaClass}.\n${describe()}")
+            }
+        }
     }
 
-    override fun next(): T {
-        rs.next()
-        return op(rs)
+    fun describe(): String {
+        val s = StringBuilder()
+        s.append("Query    : ${this}\n")
+        s.append("SQL      : ${render()}\n")
+        s.append("Params   : $params\n")
+        return s.toString()
+    }
+
+}
+
+interface TypeHandler<in T> {
+    fun setParam(stmt: PreparedStatement, pos: Int, value: T)
+}
+
+val typeHandlers = mutableMapOf<KClass<*>, TypeHandler<Any?>>()
+
+fun Connection.execute(sql: String) = prepareStatement(sql).execute()
+fun DataSource.execute(sql: String, autoclose: Boolean = true): Boolean {
+    val c = connection
+    try {
+        return c.execute(sql)
+    } finally {
+        if (autoclose) c.close()
     }
 }
+
+val ResultSet.asInt: Int get() = getInt(1)
+val ResultSet.asString: String get() = getString(1)
+val ResultSet.asLong: Long get() = getLong(1)
+val ResultSet.asDouble: Double get() = getDouble(1)
+val ResultSet.asFloat: Float get() = getFloat(1)
+val ResultSet.asLocalTime: LocalTime get() = getTime(1).toLocalTime()
+val ResultSet.asLocalDate: LocalDate get() = getDate(1).toLocalDate()
+val ResultSet.asLocalDateTime: LocalDateTime get() = getTimestamp(1).toLocalDateTime()
+val ResultSet.asUUID: UUID get() = UUID.fromString(getString(1))
+
+fun ResultSet.getUUID(label: String) = UUID.fromString(getString(label))
 
 fun <R> Connection.use(transactional: Boolean = false, block: Connection.() -> R): R {
     val wasAutoCommit = autoCommit
@@ -219,59 +600,41 @@ fun <T> DataSource.use(transactional: Boolean = false, block: Connection.() -> T
 fun <T> DataSource.transaction(block: Connection.() -> T) = connection.use(true, block)
 fun <T> Connection.transaction(block: Connection.() -> T) = use(true, block)
 
-val ResultSet.asInt: Int get() = getInt(1)
-val ResultSet.asString: String get() = getString(1)
-val ResultSet.asLong: Long get() = getLong(1)
-val ResultSet.asDouble: Double get() = getDouble(1)
-val ResultSet.asFloat: Float get() = getFloat(1)
-val ResultSet.asLocalTime: LocalTime get() = getTime(1).toLocalTime()
-val ResultSet.asLocalDate: LocalDate get() = getDate(1).toLocalDate()
-val ResultSet.asLocalDateTime: LocalDateTime get() = getTimestamp(1).toLocalDateTime()
-fun ResultSet.getUUID(label: String) = UUID.fromString(getString(label))
+class Column<out T>(val table: Table, val name: String, val getter: ResultSet.(String) -> T?, var rs: () -> ResultSet) {
+    override fun toString() = fullName
+    val fullName: String get() = if (table.tableAlias != null) "${table.tableAlias}.$name" else name
+    val alias: String get() = fullName.replace(".", "_")
+    val asAlias: String get() = if (table.tableAlias != null) "$fullName $alias" else alias
+    val value: T? get() = getter(rs(), alias)
+    val v: T get() = getter(rs(), alias)!!
+    operator fun invoke(): T = v
+}
 
-class QueryBlock {
-    private val content = StringBuilder()
-    private var firstAndOrSkipped = false
-
-    fun append(value: String) = content.append(value)
-    fun isNotEmpty() = content.isNotEmpty()
-    fun insert(pos: Int, value: String) = content.insert(pos, value)
-    fun isEmpty() = content.isEmpty()
-    override fun toString() = content.toString()
-
-    fun QueryBlock.AND(op: QueryBlock.() -> Unit) {
-        val s = QueryBlock()
-        op(s)
-        if (s.isNotEmpty()) {
-            addWordIfNotFirst("AND")
-            append("(${s.toString()})")
-        }
+class ColumnDelegate<T>(val getter: ResultSet.(String) -> T) : ReadOnlyProperty<Table, Column<T>> {
+    var instance: Column<T>? = null
+    override fun getValue(thisRef: Table, property: KProperty<*>): Column<T> {
+        if (instance == null) instance = Column(thisRef, property.name, getter, {
+            thisRef.rs ?: throw SQLException("ResultSet was not configured when column value was requested")
+        })
+        return instance!!
     }
+}
 
-    private fun addWordIfNotFirst(word: String) {
-        if (firstAndOrSkipped) {
-            append(" $word ")
-        } else {
-            firstAndOrSkipped = true
-        }
-    }
-
-    fun AND(s: String) {
-        addWordIfNotFirst("AND")
-        append(s)
-    }
-
-    fun OR(s: String) {
-        addWordIfNotFirst("OR")
-        append(s)
-    }
+abstract class Table(val tableName: String) {
+    var tableAlias: String? = null
+    var rs: ResultSet? = null
+    fun <T> column(getter: ResultSet.(String) -> T) = ColumnDelegate(getter)
+    override fun toString() = if (tableAlias.isNullOrBlank() || tableAlias == tableName) tableName else "$tableName $tableAlias"
+    val columns: List<Column<*>> get() = javaClass.declaredMethods
+            .filter { Column::class.java.isAssignableFrom(it.returnType) }
+            .map {
+                it.isAccessible = true
+                it.invoke(this) as Column<*>
+            }
 
 }
 
-inline fun <T, R> Iterable<T>.OR(transform: (T) -> R): String {
-    return map(transform).joinToString { " OR " }
-}
-
-inline fun <T, R> Iterable<T>.AND(transform: (T) -> R): String {
-    return map(transform).joinToString { " AND " }
+infix fun <T : Table> T.AS(alias: String): T {
+    tableAlias = alias
+    return this
 }
