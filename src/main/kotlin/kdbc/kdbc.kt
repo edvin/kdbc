@@ -394,16 +394,12 @@ class KDBC {
     }
 }
 
-abstract class Query<out T>(db: Wrapper? = null) : Expr(null) {
+abstract class Query<out T>() : Expr(null) {
     private var withGeneratedKeys: (ResultSet.(Int) -> Unit)? = null
     val tables = mutableListOf<Table>()
     lateinit var stmt: PreparedStatement
     var connection: Connection? = null
     var close = false
-
-    init {
-        if (db != null) db(db)
-    }
 
     /**
      * Convert a result row into the query result object. Instead of extracting
@@ -495,8 +491,7 @@ abstract class Query<out T>(db: Wrapper? = null) : Expr(null) {
     /**
      * Gather parameters, render the SQL, prepare the statement and execute the query
      */
-    fun execute(db: Wrapper? = null): Boolean {
-        if (db != null) db(db)
+    fun execute(): Boolean {
         if (connection == null) db(KDBC.DataSourceProvider(this))
         var hasResultSet: Boolean? = null
         try {

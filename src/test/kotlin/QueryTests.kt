@@ -9,15 +9,16 @@ import org.junit.Test
 
 class QueryTests {
     companion object {
-        private val db = JdbcDataSource().apply {
-            setURL("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1")
-            execute("CREATE TABLE customer (id integer not null primary key auto_increment, name text)")
-            execute("INSERT INTO customer (name) VALUES ('John')")
-            execute("INSERT INTO customer (name) VALUES ('Jill')")
+        init {
+            JdbcDataSource().apply {
+                setURL("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1")
+                execute("CREATE TABLE customer (id integer not null primary key auto_increment, name text)")
+                execute("INSERT INTO customer (name) VALUES ('John')")
+                execute("INSERT INTO customer (name) VALUES ('Jill')")
 
-            KDBC.DataSourceProvider = { this }
+                KDBC.DataSourceProvider = { this }
+            }
         }
-
     }
 
     @Test
@@ -29,7 +30,7 @@ class QueryTests {
 
     @Test
     fun updateTest() {
-        UpdateCustomer(Customer(1, "Johnnie")).execute(db)
+        UpdateCustomer(Customer(1, "Johnnie")).execute()
 
         val updatedName = SelectCustomer().byId(1).name
 
