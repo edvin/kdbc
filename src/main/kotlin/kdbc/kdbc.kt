@@ -489,8 +489,10 @@ abstract class Query<out T>() : Expr(null) {
         }
     }
 
+    val resultSet: ResultSet get() = stmt.resultSet!!
+
     /**
-     * Gather parameters, render the SQL, prepare the statement and execute the query
+     * Gather parameters, render the SQL, prepare the statement and execute the query.
      */
     fun execute(): Boolean {
         if (connection == null) db(KDBC.DataSourceProvider(this))

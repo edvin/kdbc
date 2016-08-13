@@ -53,15 +53,16 @@ class QueryTests {
         DeleteCustomer(id).execute()
         assertNull(SelectCustomer().byId(id))
     }
-//
-//    @Test
-//    fun resultSetTest() {
-//        db.query {
-//            "SELECT * FROM customers"
-//        } execute {
-//            while (resultSet.next()) println(resultSet.getString("name"))
-//        }
-//    }
+
+    @Test
+    fun adhocResultSetTest() {
+        SelectCustomer().apply {
+            execute()
+            val rs = resultSet
+            while (rs.next()) println(rs.getString("name"))
+        }
+    }
+
 //
 //    @Test
 //    fun sequenceTest() {

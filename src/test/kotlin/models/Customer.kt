@@ -63,9 +63,6 @@ class DeleteCustomer(id: Int) : Delete() {
     val c = CustomerTable()
 
     init {
-        DELETE(c) {
-            c.id EQ id
-            println(render())
-        }
+        DELETE(c) { c.id EQ id }
     }
 }
