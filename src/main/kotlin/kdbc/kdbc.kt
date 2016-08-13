@@ -2,6 +2,7 @@
 
 package kdbc
 
+import kdbc.KDBC.Companion.connectionFactory
 import java.io.InputStream
 import java.math.BigDecimal
 import java.sql.*
@@ -387,26 +388,55 @@ fun <Q: Query<*>> Q.close(close: Boolean): Q {
     return this
 }
 
-internal class DataSourceFactory {
+internal fun logErrors(msg: String, op: () -> Unit) {
+    try {
+        op()
+    } catch (ex: Throwable) {
+        logger.log(Level.WARNING, msg, ex)
+    }
+}
+
+enum class TransactionType { REQUIRED, REQUIRES_NEW }
+
+/**
+ * Make sure the surrounded code is executed within a transaction.
+ *
+ * All connections borrowed from the ConnectionFactory are automatically tracked,
+ * as well as connections added to the this function via the `connection` parameter.
+ *
+ * By default, the TransactionType.REQUIRED attribute indicates that this transaction
+ * can participate in an already active transaction or create it's own.
+ *
+ * Changing to TransactionType.REQUIRES_NEW will temporarily suspend any action transactions,
+ * and resume them after this block completes.
+ *
+ */
+fun transaction(vararg connection: Connection, type: TransactionType = TransactionType.REQUIRED, op: () -> Unit) {
+    val context = TransactionContext(type)
+    for (c in connection) context.trackConnection(c)
+    context.execute(op)
+}
+
+internal class ConnectionFactory {
     val transactionContext = ThreadLocal<TransactionContext>()
 
-    internal var provider: (Query<*>) -> Connection = {
-        throw SQLException("No default data source provider is configured. Use Query.db() or configure `KDBC.dataSourceProvider.\n${it.describe()}")
+    internal var factoryFn: (Query<*>) -> Connection = {
+        throw SQLException("No default data source factoryFn is configured. Use Query.db() or configure `KDBC.dataSourceProvider.\n${it.describe()}")
     }
 
     internal fun borrow(query: Query<*>): Connection {
-        val connection = provider(query)
-        transactionContext.get()?.add(connection)
+        val connection = factoryFn(query)
+        transactionContext.get()?.trackConnection(connection)
         return connection
     }
 }
 
 class KDBC {
     companion object {
-        internal val dataSourceFactory = DataSourceFactory()
+        internal val connectionFactory = ConnectionFactory()
 
-        fun setDataSourceProvider(provider: (Query<*>) -> Connection) {
-            dataSourceFactory.provider = provider
+        fun setConnectionFactory(factoryFn: (Query<*>) -> Connection) {
+            connectionFactory.factoryFn = factoryFn
         }
     }
 }
@@ -497,21 +527,15 @@ abstract class Query<out T>() : Expr(null) {
         if (close) logErrors("Closing connection") { connection!!.close() }
     }
 
-    private fun logErrors(msg: String, op: () -> Unit) {
-        try {
-            op()
-        } catch (ex: Throwable) {
-            logger.log(Level.WARNING, msg, ex)
-        }
-    }
-
     val resultSet: ResultSet get() = stmt.resultSet!!
+
+    operator fun invoke() = execute()
 
     /**
      * Gather parameters, render the SQL, prepare the statement and execute the query.
      */
     fun execute(): Boolean {
-        if (connection == null) db(KDBC.dataSourceFactory.borrow(this))
+        if (connection == null) db(connectionFactory.borrow(this))
         var hasResultSet: Boolean? = null
         try {
             val sql = render()
@@ -613,32 +637,91 @@ fun ResultSet.getLocalTime(label: String) = getTime(label).toLocalTime()
 fun ResultSet.getLocalDateTime(label: String) = getTimestamp(label).toLocalDateTime()
 fun ResultSet.getLocalDate(label: String) = getDate(label).toLocalDate()
 
-fun <R> Connection.use(transactional: Boolean = false, block: Connection.() -> R): R {
-    val wasAutoCommit = autoCommit
-    if (transactional && wasAutoCommit) autoCommit = false
-    var failed = false
-    try {
-        return block(this)
-    } catch (e: Exception) {
-        failed = true
-        throw e
-    } finally {
-        if (transactional) {
-            if (failed) rollback() else commit()
-        }
-        this.close()
-    }
-}
-
-class TransactionContext {
+internal class TransactionContext(val type: TransactionType) {
     private val connections = mutableListOf<Connection>()
+    private val childContexts = mutableListOf<TransactionContext>()
 
-    fun add(connection: Connection) {
+    fun trackConnection(connection: Connection) {
         connection.autoCommit = false
         connections.add(connection)
     }
 
+    fun trackChildContext(context: TransactionContext) {
+        childContexts.add(context)
+    }
+
+    fun rollback() {
+        connections.forEach { silentlyRollback(it) }
+        childContexts.forEach { it.rollback() }
+        cleanup()
+    }
+
+    fun commit() {
+        connections.forEach { silentlyCommit(it) }
+        childContexts.forEach { it.commit() }
+        cleanup()
+    }
+
+    private fun cleanup() {
+        connections.clear()
+        childContexts.clear()
+    }
+
+    private fun silentlyCommit(connection: Connection) {
+        logErrors("Committing connection $connection") {
+            connection.commit()
+            connection.close() // TODO: Detect if we should close or not
+        }
+    }
+
+    private fun silentlyRollback(connection: Connection) {
+        logErrors("Rolling back connection $connection") {
+            connection.rollback()
+            connection.close() // TODO: Detect if we should close or not
+        }
+    }
+
     fun execute(op: () -> Unit) {
+        val activeContext = connectionFactory.transactionContext.get()
+
+        if (type == TransactionType.REQUIRED) {
+            if (activeContext != null) trackChildContext(this)
+            else connectionFactory.transactionContext.set(this)
+        } else if (type == TransactionType.REQUIRES_NEW) {
+            connectionFactory.transactionContext.set(this)
+        }
+
+        var failed = false
+        try {
+            op()
+        } catch (e: Exception) {
+            failed = true
+            throw e
+        } finally {
+            if (failed) {
+                if (type == TransactionType.REQUIRED) {
+                    if (activeContext != null) {
+                        activeContext.rollback()
+                    } else {
+                        rollback()
+                    }
+                } else if (type == TransactionType.REQUIRES_NEW) {
+                    rollback()
+                }
+            } else {
+                if (type == TransactionType.REQUIRED) {
+                    if (activeContext != null) {
+                        activeContext.commit()
+                    } else {
+                        commit()
+                    }
+                } else if (type == TransactionType.REQUIRES_NEW) {
+                    commit()
+                }
+            }
+
+            connectionFactory.transactionContext.set(activeContext)
+        }
 
     }
 }

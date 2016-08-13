@@ -1,9 +1,9 @@
 import kdbc.KDBC
 import kdbc.execute
+import kdbc.transaction
 import models.*
 import org.h2.jdbcx.JdbcDataSource
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
+import org.junit.Assert.*
 import org.junit.Test
 import java.sql.SQLException
 
@@ -16,7 +16,7 @@ class QueryTests {
                 execute("INSERT INTO customer (name) VALUES ('John')")
                 execute("INSERT INTO customer (name) VALUES ('Jill')")
 
-                KDBC.setDataSourceProvider { connection }
+                KDBC.setConnectionFactory { connection }
             }
         }
     }
@@ -50,9 +50,8 @@ class QueryTests {
 
     @Test
     fun deleteTest() {
-        val id = 1
-        DeleteCustomer(id).execute()
-        assertNull(SelectCustomer().byId(id))
+        DeleteCustomer(1)()
+        assertNull(SelectCustomer().byId(1))
     }
 
     @Test
@@ -64,21 +63,17 @@ class QueryTests {
         }
     }
 
-//    @Test
-//    fun transaction_rollback() {
-//        try {
-//
-//
-//            KDBC.DataSourceProvider(null).transaction {
-//                execute { "UPDATE customers SET name = 'Blah' WHERE id = 1" }
-//                execute { "SELECT i_will_fail" }
-//            }
-//        } catch (ex: SQLException) {
-//            // Expected
-//            println("As expected")
-//        }
-//        val customer = db.query { "SELECT * FROM customers WHERE id = 1" } single { Customer(this) }
-//        Assert.assertNotEquals("Name should not be changed", "Blah", customer.name)
-//    }
+    @Test
+    fun transaction_rollback() {
+        try {
+            transaction {
+                DeleteCustomer(1).execute()
+                throw SQLException("I'm naughty")
+            }
+        } catch (ex: SQLException) {
+
+        }
+        assertNotNull("Customer 1 should still be available", SelectCustomer().byId(1))
+    }
 
 }
