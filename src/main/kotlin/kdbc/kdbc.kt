@@ -475,7 +475,7 @@ abstract class Query<out T>() : Expr(null) {
             if (tables.find { it.tableAlias == tableName } == null)
                 tableAlias = tableName
             else
-                tableAlias = "${tableName}_${tables.indexOf(this) + 1}"
+                tableAlias = "$tableName${tables.indexOf(this) + 1}"
         }
     }
 
