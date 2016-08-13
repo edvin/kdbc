@@ -1,6 +1,7 @@
 import kdbc.KDBC
 import kdbc.execute
 import models.Customer
+import models.InsertCustomer
 import models.SelectCustomer
 import models.UpdateCustomer
 import org.h2.jdbcx.JdbcDataSource
@@ -36,20 +37,17 @@ class QueryTests {
 
         assertEquals("Johnnie", updatedName)
     }
-//
-//    @Test
-//    fun insertTest() {
-//        val c = Customer(name = "Jane")
-//
-//        db.execute {
-//            generatedKeys { c.id = asInt }
-//            "INSERT INTO customers (name) VALUES (${c.name()})"
-//        }
-//
-//        val jane = getCustomerById(c.id!!)
-//
-//        assertEquals("Customer(id=${c.id}, name=Jane)", jane.toString())
-//    }
+
+    @Test
+    fun insertTest() {
+        val newCustomer = Customer(name = "Jane")
+
+        InsertCustomer(newCustomer).execute()
+
+        val fromDatabase = SelectCustomer().byId(newCustomer.id!!)
+
+        assertEquals("Customer(id=${newCustomer.id}, name=Jane)", fromDatabase.toString())
+    }
 //
 //    @Test(expected = SQLException::class)
 //    fun deleteTest() {

@@ -5,8 +5,9 @@ import kdbc.Query
 import kdbc.Table
 import kdbc.Update
 import java.sql.ResultSet
+import java.sql.Types
 
-class Customer(val id: Int, val name: String) {
+data class Customer(var id: Int? = null, var name: String) {
     constructor(t: CustomerTable) : this(t.id(), t.name())
 }
 
@@ -20,8 +21,10 @@ class InsertCustomer(customer: Customer) : Insert() {
 
     init {
         INSERT(c) {
-            c.id TO customer.id
             c.name TO customer.name
+        }
+        generatedKeys {
+            customer.id = getInt(1)
         }
     }
 }
