@@ -7,11 +7,13 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class QueryTests {
-    private val db = JdbcDataSource().apply {
-        setURL("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1")
-        execute("CREATE TABLE customer (id integer not null primary key auto_increment, name text)")
-        execute("INSERT INTO customer (name) VALUES ('John')")
-        execute("INSERT INTO customer (name) VALUES ('Jill')")
+    companion object {
+        private val db = JdbcDataSource().apply {
+            setURL("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1")
+            execute("CREATE TABLE customer (id integer not null primary key auto_increment, name text)")
+            execute("INSERT INTO customer (name) VALUES ('John')")
+            execute("INSERT INTO customer (name) VALUES ('Jill')")
+        }
     }
 
     @Test
@@ -20,7 +22,7 @@ class QueryTests {
         assertEquals(1, john.id)
         assertEquals("John", john.name)
     }
-//
+
     @Test
     fun updateTest() {
         UpdateCustomer(Customer(1, "Johnnie")).execute(db)
