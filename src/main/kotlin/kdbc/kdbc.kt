@@ -387,10 +387,26 @@ fun <Q: Query<*>> Q.close(close: Boolean): Q {
     return this
 }
 
+internal class DataSourceFactory {
+    val transactionContext = ThreadLocal<TransactionContext>()
+
+    internal var provider: (Query<*>) -> Connection = {
+        throw SQLException("No default data source provider is configured. Use Query.db() or configure `KDBC.dataSourceProvider.\n${it.describe()}")
+    }
+
+    internal fun borrow(query: Query<*>): Connection {
+        val connection = provider(query)
+        transactionContext.get()?.add(connection)
+        return connection
+    }
+}
+
 class KDBC {
     companion object {
-        var DataSourceProvider: (Query<*>) -> Wrapper = {
-            throw SQLException("No default data source provider is configured. Use Query.db() or configure `DataSourceProvider.\n${it.describe()}")
+        internal val dataSourceFactory = DataSourceFactory()
+
+        fun setDataSourceProvider(provider: (Query<*>) -> Connection) {
+            dataSourceFactory.provider = provider
         }
     }
 }
@@ -495,7 +511,7 @@ abstract class Query<out T>() : Expr(null) {
      * Gather parameters, render the SQL, prepare the statement and execute the query.
      */
     fun execute(): Boolean {
-        if (connection == null) db(KDBC.DataSourceProvider(this))
+        if (connection == null) db(KDBC.dataSourceFactory.borrow(this))
         var hasResultSet: Boolean? = null
         try {
             val sql = render()
@@ -614,9 +630,18 @@ fun <R> Connection.use(transactional: Boolean = false, block: Connection.() -> R
     }
 }
 
-fun <T> DataSource.use(transactional: Boolean = false, block: Connection.() -> T) = connection.use(transactional, block)
-fun <T> DataSource.transaction(block: Connection.() -> T) = connection.use(true, block)
-fun <T> Connection.transaction(block: Connection.() -> T) = use(true, block)
+class TransactionContext {
+    private val connections = mutableListOf<Connection>()
+
+    fun add(connection: Connection) {
+        connection.autoCommit = false
+        connections.add(connection)
+    }
+
+    fun execute(op: () -> Unit) {
+
+    }
+}
 
 class Column<out T>(val table: Table, val name: String, val getter: ResultSet.(String) -> T?, var rs: () -> ResultSet) {
     override fun toString() = fullName

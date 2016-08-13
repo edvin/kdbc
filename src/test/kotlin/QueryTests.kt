@@ -5,6 +5,7 @@ import org.h2.jdbcx.JdbcDataSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.sql.SQLException
 
 class QueryTests {
     companion object {
@@ -15,7 +16,7 @@ class QueryTests {
                 execute("INSERT INTO customer (name) VALUES ('John')")
                 execute("INSERT INTO customer (name) VALUES ('Jill')")
 
-                KDBC.DataSourceProvider = { this }
+                KDBC.setDataSourceProvider { connection }
             }
         }
     }
@@ -63,19 +64,12 @@ class QueryTests {
         }
     }
 
-//
-//    @Test
-//    fun sequenceTest() {
-//        val seq = db.query { "SELECT * FROM customers" } sequence { Customer(this) }
-//        seq.forEach {
-//            println("Found customer in seq: $it")
-//        }
-//    }
-//
 //    @Test
 //    fun transaction_rollback() {
 //        try {
-//            db.transaction {
+//
+//
+//            KDBC.DataSourceProvider(null).transaction {
 //                execute { "UPDATE customers SET name = 'Blah' WHERE id = 1" }
 //                execute { "SELECT i_will_fail" }
 //            }
