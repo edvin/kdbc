@@ -670,14 +670,14 @@ internal class TransactionContext(val type: TransactionType) {
     private fun silentlyCommit(connection: Connection) {
         logErrors("Committing connection $connection") {
             connection.commit()
-            connection.close() // TODO: Detect if we should close or not
+            connection.close()
         }
     }
 
     private fun silentlyRollback(connection: Connection) {
         logErrors("Rolling back connection $connection") {
             connection.rollback()
-            connection.close() // TODO: Detect if we should close or not
+            connection.close()
         }
     }
 
@@ -692,6 +692,7 @@ internal class TransactionContext(val type: TransactionType) {
         }
 
         var failed = false
+
         try {
             op()
         } catch (e: Exception) {
@@ -722,7 +723,6 @@ internal class TransactionContext(val type: TransactionType) {
 
             connectionFactory.transactionContext.set(activeContext)
         }
-
     }
 }
 
