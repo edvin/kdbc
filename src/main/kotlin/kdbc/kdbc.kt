@@ -19,15 +19,15 @@ import kotlin.reflect.KProperty
 
 internal val logger = Logger.getLogger("KDBC")
 
-class JoinDiscriminatorExpr(val discriminator: String, parent: Expr) : Expr(null, parent) {
+class JoinDiscriminatorExpr(val discriminator: String, parent: Expr) : Expr(parent) {
     override fun render(s: StringBuilder) {
         s.append("\n$discriminator")
         super.render(s)
     }
 }
-class JoinOnExpr(parent: Expr) : Expr(null, parent)
+class JoinOnExpr(parent: Expr) : Expr(parent)
 
-class JoinExpr(val table: Table, parent: Expr) : Expr(null, parent) {
+class JoinExpr(val table: Table, parent: Expr) : Expr(parent) {
     init {
         query.addTable(table)
     }
@@ -45,7 +45,7 @@ class JoinExpr(val table: Table, parent: Expr) : Expr(null, parent) {
     }
 }
 
-class SelectExpr(val columns: List<Column<*>>, parent: Expr) : Expr(null, parent) {
+class SelectExpr(val columns: List<Column<*>>, parent: Expr) : Expr(parent) {
     override fun render(s: StringBuilder) {
         s.append("SELECT ")
         s.append(columns.map { it.asAlias }.joinToString(", "))
@@ -53,7 +53,7 @@ class SelectExpr(val columns: List<Column<*>>, parent: Expr) : Expr(null, parent
     }
 }
 
-class InsertExpr(val table: Table, parent: Expr) : Expr(null, parent) {
+class InsertExpr(val table: Table, parent: Expr) : Expr(parent) {
     override fun render(s: StringBuilder) {
         s.append("INSERT INTO ${table.tableName} (")
         val pairs = expressions.map { it as? ComparisonExpr }.filterNotNull()
@@ -64,7 +64,7 @@ class InsertExpr(val table: Table, parent: Expr) : Expr(null, parent) {
     }
 }
 
-class UpdateExpr(val table: Table, parent: Expr) : Expr(null, parent) {
+class UpdateExpr(val table: Table, parent: Expr) : Expr(parent) {
     override fun render(s: StringBuilder) {
         s.append("UPDATE ").append(table.tableName).append(" ")
         super.render(s)
@@ -72,21 +72,24 @@ class UpdateExpr(val table: Table, parent: Expr) : Expr(null, parent) {
 }
 
 // TODO: Type safe
-class GroupByExpr(sql: String? = null, parent: Expr) : Expr(sql, parent) {
+class GroupByExpr(sql: String, parent: Expr) : Expr(parent) {
+    init {
+        add(StringExpr(sql, this))
+    }
     override fun render(s: StringBuilder) {
         s.append("\nGROUP BY ")
         super.render(s)
     }
 }
 
-class HavingExpr(parent: Expr) : Expr(null, parent) {
+class HavingExpr(parent: Expr) : Expr(parent) {
     override fun render(s: StringBuilder) {
         s.append("\nHAVING ")
         super.render(s)
     }
 }
 
-class SetExpr(parent: Expr) : Expr(null, parent) {
+class SetExpr(parent: Expr) : Expr(parent) {
     override fun render(s: StringBuilder) {
         s.append("SET ")
         expressions.forEachIndexed { i, expr ->
@@ -97,14 +100,14 @@ class SetExpr(parent: Expr) : Expr(null, parent) {
     }
 }
 
-class DeleteExpr(val table: Table, parent: Expr) : Expr(null, parent) {
+class DeleteExpr(val table: Table, parent: Expr) : Expr(parent) {
     override fun render(s: StringBuilder) {
         s.append("DELETE FROM $table ")
         super.render(s)
     }
 }
 
-class FromExpr(val fromTables: List<Table>, parent: Expr) : Expr(null, parent) {
+class FromExpr(val fromTables: List<Table>, parent: Expr) : Expr(parent) {
     init {
         query.apply {
             fromTables.forEach { addTable(it) }
@@ -120,7 +123,7 @@ class FromExpr(val fromTables: List<Table>, parent: Expr) : Expr(null, parent) {
     }
 }
 
-class WhereExpr(parent: Expr) : Expr(null, parent) {
+class WhereExpr(parent: Expr) : Expr(parent) {
     override fun render(s: StringBuilder) {
         if (expressions.isEmpty()) return
         if (parent is Query<*>) s.append("\n")
@@ -129,7 +132,7 @@ class WhereExpr(parent: Expr) : Expr(null, parent) {
     }
 }
 
-class InExpr(val column: Column<*>, parent: Expr) : Expr(null, parent) {
+class InExpr(val column: Column<*>, parent: Expr) : Expr(parent) {
     override fun render(s: StringBuilder) {
         s.append(column.fullName)
         s.append(" IN (")
@@ -138,7 +141,7 @@ class InExpr(val column: Column<*>, parent: Expr) : Expr(null, parent) {
     }
 }
 
-class AndExpr(sql: String? = null, parent: Expr) : Expr(sql, parent) {
+class AndExpr(parent: Expr) : Expr(parent) {
     override fun render(s: StringBuilder) {
         if (expressions.isEmpty()) return
         if ((parent is WhereExpr || parent is AndExpr || parent is OrExpr) && parent.expressions.indexOf(this) == 0) {
@@ -154,7 +157,7 @@ class AndExpr(sql: String? = null, parent: Expr) : Expr(sql, parent) {
     }
 }
 
-class OrExpr(sql: String? = null, parent: Expr) : Expr(sql, parent) {
+class OrExpr(parent: Expr) : Expr(parent) {
     override fun render(s: StringBuilder) {
         if (expressions.isEmpty()) return
         if ((parent is WhereExpr || parent is AndExpr || parent is OrExpr) && parent.expressions.indexOf(this) == 0) {
@@ -190,7 +193,7 @@ class ComparisonExpr(val column: Any?, val sign: String, val value: Any?, parent
     }
 }
 
-abstract class Expr(sql: String? = null, val parent: Expr?) {
+abstract class Expr(val parent: Expr?) {
     companion object {
         val NoSpaceWhenLastChar = arrayOf(' ', '(', ')', '\n')
     }
@@ -198,10 +201,6 @@ abstract class Expr(sql: String? = null, val parent: Expr?) {
     val query: Query<*> get() = if (this is Query<*>) this else if (parent is Query<*>) parent else parent!!.query
 
     val expressions = mutableListOf<Expr>()
-
-    init {
-        if (sql != null) add(StringExpr(sql, this))
-    }
 
     fun gatherParams(params: MutableList<Param>) {
         if (this is ComparisonExpr) params.add(param)
@@ -291,11 +290,9 @@ abstract class Expr(sql: String? = null, val parent: Expr?) {
         add(InExpr(this, parent!!), op)
     }
 
-    fun AND(sql: String? = null, op: (AndExpr.() -> Unit)? = null) =
-            add(AndExpr(sql, this), op)
+    fun AND(op: AndExpr.() -> Unit) = add(AndExpr(this), op)
 
-    fun OR(sql: String? = null, op: (OrExpr.() -> Unit)? = null) =
-            add(OrExpr(sql, this), op)
+    fun OR(op: OrExpr.() -> Unit) = add(OrExpr(this), op)
 
     infix fun Expr.assuming(predicate: Boolean) {
         if (!predicate) parent?.expressions?.remove(this)
@@ -390,7 +387,7 @@ fun <Q: Query<*>> Q.close(close: Boolean): Q {
     return this
 }
 
-abstract class Query<out T>(db: Wrapper? = null) : Expr(null, null) {
+abstract class Query<out T>(db: Wrapper? = null) : Expr(null) {
     private var withGeneratedKeys: (ResultSet.(Int) -> Unit)? = null
     val tables = mutableListOf<Table>()
     lateinit var stmt: PreparedStatement
@@ -588,17 +585,10 @@ fun DataSource.execute(sql: String, autoclose: Boolean = true): Boolean {
     }
 }
 
-val ResultSet.asInt: Int get() = getInt(1)
-val ResultSet.asString: String get() = getString(1)
-val ResultSet.asLong: Long get() = getLong(1)
-val ResultSet.asDouble: Double get() = getDouble(1)
-val ResultSet.asFloat: Float get() = getFloat(1)
-val ResultSet.asLocalTime: LocalTime get() = getTime(1).toLocalTime()
-val ResultSet.asLocalDate: LocalDate get() = getDate(1).toLocalDate()
-val ResultSet.asLocalDateTime: LocalDateTime get() = getTimestamp(1).toLocalDateTime()
-val ResultSet.asUUID: UUID get() = UUID.fromString(getString(1))
-
 fun ResultSet.getUUID(label: String) = UUID.fromString(getString(label))
+fun ResultSet.getLocalTime(label: String) = getTime(label).toLocalTime()
+fun ResultSet.getLocalDateTime(label: String) = getTimestamp(label).toLocalDateTime()
+fun ResultSet.getLocalDate(label: String) = getDate(label).toLocalDate()
 
 fun <R> Connection.use(transactional: Boolean = false, block: Connection.() -> R): R {
     val wasAutoCommit = autoCommit
