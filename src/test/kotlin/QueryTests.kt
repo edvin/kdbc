@@ -71,7 +71,6 @@ class QueryTests {
                 throw SQLException("I'm naughty")
             }
         } catch (ex: SQLException) {
-
         }
         assertNotNull("Customer 1 should still be available", SelectCustomer().byId(1))
     }

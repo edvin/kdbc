@@ -546,6 +546,8 @@ abstract class Query<out T>() : Expr(null) {
             hasResultSet = stmt.execute()
             handleGeneratedKeys()
             return hasResultSet
+        } catch (ex: Exception) {
+            throw SQLException("${ex.message}\n\n${describe()}", ex)
         } finally {
             if (close && hasResultSet == false) connection!!.close()
         }
@@ -609,8 +611,10 @@ abstract class Query<out T>() : Expr(null) {
     fun describe(): String {
         val s = StringBuilder()
         s.append("Query    : ${this}\n")
-        s.append("SQL      : ${render()}\n")
-        s.append("Params   : $params\n")
+        s.append("SQL      : ${render().replace(Regex("[^\\s]\n"), " ").replace(Regex("[\\s]\n"), " ")}\n")
+        s.append("Params   : $params")
+        val transaction = connectionFactory.transactionContext.get()
+        if (transaction != null) s.append("\nTX ID    : ${transaction.id}")
         return s.toString()
     }
 
@@ -638,6 +642,7 @@ fun ResultSet.getLocalDateTime(label: String) = getTimestamp(label).toLocalDateT
 fun ResultSet.getLocalDate(label: String) = getDate(label).toLocalDate()
 
 internal class TransactionContext(val type: TransactionType) {
+    val id = UUID.randomUUID()
     private val connections = mutableListOf<Connection>()
     private val childContexts = mutableListOf<TransactionContext>()
 
