@@ -376,7 +376,6 @@ fun <Q : Query<*>> Q.db(db: Wrapper?): Q {
             connection = db.connection
             close = true
         }
-        null -> { }
         else -> throw SQLException("db must be either java.sql.Connection or java.sql.DataSource")
     }
     return this
@@ -387,6 +386,14 @@ fun <Q: Query<*>> Q.close(close: Boolean): Q {
     return this
 }
 
+class KDBC {
+    companion object {
+        var DataSourceProvider: (Query<*>) -> Wrapper = {
+            throw SQLException("No default data source provider is configured. Use Query.db() or configure `DataSourceProvider.\n${it.describe()}")
+        }
+    }
+}
+
 abstract class Query<out T>(db: Wrapper? = null) : Expr(null) {
     private var withGeneratedKeys: (ResultSet.(Int) -> Unit)? = null
     val tables = mutableListOf<Table>()
@@ -395,7 +402,7 @@ abstract class Query<out T>(db: Wrapper? = null) : Expr(null) {
     var close = false
 
     init {
-        db(db)
+        if (db != null) db(db)
     }
 
     /**
@@ -490,17 +497,19 @@ abstract class Query<out T>(db: Wrapper? = null) : Expr(null) {
      */
     fun execute(db: Wrapper? = null): Boolean {
         if (db != null) db(db)
+        if (connection == null) db(KDBC.DataSourceProvider(this))
+        var hasResultSet: Boolean? = null
         try {
             val sql = render()
             val keyStrategy = if (withGeneratedKeys != null) PreparedStatement.RETURN_GENERATED_KEYS
             else PreparedStatement.NO_GENERATED_KEYS
             stmt = connection!!.prepareStatement(sql, keyStrategy)
             applyParameters()
-            val hasResultSet = stmt.execute()
+            hasResultSet = stmt.execute()
             handleGeneratedKeys()
             return hasResultSet
         } finally {
-            if (close) connection!!.close()
+            if (close && hasResultSet == false) connection!!.close()
         }
     }
 

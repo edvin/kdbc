@@ -5,7 +5,6 @@ import kdbc.Query
 import kdbc.Table
 import kdbc.Update
 import java.sql.ResultSet
-import java.sql.Wrapper
 
 class Customer(val id: Int, val name: String) {
     constructor(t: CustomerTable) : this(t.id(), t.name())
@@ -27,7 +26,7 @@ class InsertCustomer(customer: Customer) : Insert() {
     }
 }
 
-class SelectCustomer(db: Wrapper? = null) : Query<Customer>(db) {
+class SelectCustomer() : Query<Customer>() {
     val c = CustomerTable()
 
     init {

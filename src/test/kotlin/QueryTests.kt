@@ -1,3 +1,4 @@
+import kdbc.KDBC
 import kdbc.execute
 import models.Customer
 import models.SelectCustomer
@@ -13,12 +14,15 @@ class QueryTests {
             execute("CREATE TABLE customer (id integer not null primary key auto_increment, name text)")
             execute("INSERT INTO customer (name) VALUES ('John')")
             execute("INSERT INTO customer (name) VALUES ('Jill')")
+
+            KDBC.DataSourceProvider = { this }
         }
+
     }
 
     @Test
     fun queryTest() {
-        val john = SelectCustomer(db).byId(1)
+        val john = SelectCustomer().byId(1)
         assertEquals(1, john.id)
         assertEquals("John", john.name)
     }
@@ -27,7 +31,7 @@ class QueryTests {
     fun updateTest() {
         UpdateCustomer(Customer(1, "Johnnie")).execute(db)
 
-        val updatedName = SelectCustomer(db).byId(1).name
+        val updatedName = SelectCustomer().byId(1).name
 
         assertEquals("Johnnie", updatedName)
     }
