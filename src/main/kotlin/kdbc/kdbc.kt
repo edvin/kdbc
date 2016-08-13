@@ -738,6 +738,8 @@ class Column<out T>(val table: Table, val name: String, val getter: ResultSet.(S
     val asAlias: String get() = if (table.tableAlias != null) "$fullName $alias" else alias
     val value: T? get() = getter(rs(), alias)
     val v: T get() = getter(rs(), alias)!!
+    val isNull: Boolean get() = value == null
+    val isNotNull: Boolean get() = !isNull
     operator fun invoke(): T = v
 }
 
