@@ -1,11 +1,7 @@
 package models
 
-import kdbc.Insert
-import kdbc.Query
-import kdbc.Table
-import kdbc.Update
+import kdbc.*
 import java.sql.ResultSet
-import java.sql.Types
 
 data class Customer(var id: Int? = null, var name: String) {
     constructor(t: CustomerTable) : this(t.id(), t.name())
@@ -37,9 +33,9 @@ class SelectCustomer() : Query<Customer>() {
         FROM(c)
     }
 
-    fun byId(id: Int): Customer = let {
+    fun byId(id: Int): Customer? = let {
         WHERE { c.id EQ id }
-        first()
+        firstOrNull()
     }
 
     fun search(name: String): List<Customer> = let {
@@ -52,12 +48,24 @@ class SelectCustomer() : Query<Customer>() {
 
 class UpdateCustomer(customer: Customer) : Update() {
     val c = CustomerTable()
+
     init {
         UPDATE(c) {
             c.name TO customer.name
         }
         WHERE {
             c.id EQ customer.id
+        }
+    }
+}
+
+class DeleteCustomer(id: Int) : Delete() {
+    val c = CustomerTable()
+
+    init {
+        DELETE(c) {
+            c.id EQ id
+            println(render())
         }
     }
 }

@@ -103,6 +103,7 @@ class SetExpr(parent: Expr) : Expr(parent) {
 class DeleteExpr(val table: Table, parent: Expr) : Expr(parent) {
     override fun render(s: StringBuilder) {
         s.append("DELETE FROM $table ")
+        if (expressions.firstOrNull() !is WhereExpr) s.append("\nWHERE ")
         super.render(s)
     }
 }
@@ -192,7 +193,6 @@ class ComparisonExpr(val column: Any?, val sign: String, val value: Any?, parent
         if (transform != null) s.append(")")
     }
 }
-
 abstract class Expr(val parent: Expr?) {
     companion object {
         val NoSpaceWhenLastChar = arrayOf(' ', '(', ')', '\n')
@@ -332,6 +332,7 @@ abstract class Expr(val parent: Expr?) {
             = add(ComparisonExpr(receiver, sign, param, this@Expr))
 
 }
+
 
 class TextTransform(val type: Type, val value: Any?) {
     enum class Type { UPPER, LOWER }

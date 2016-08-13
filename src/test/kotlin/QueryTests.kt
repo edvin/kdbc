@@ -1,11 +1,9 @@
 import kdbc.KDBC
 import kdbc.execute
-import models.Customer
-import models.InsertCustomer
-import models.SelectCustomer
-import models.UpdateCustomer
+import models.*
 import org.h2.jdbcx.JdbcDataSource
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class QueryTests {
@@ -24,7 +22,7 @@ class QueryTests {
 
     @Test
     fun queryTest() {
-        val john = SelectCustomer().byId(1)
+        val john = SelectCustomer().byId(1)!!
         assertEquals(1, john.id)
         assertEquals("John", john.name)
     }
@@ -33,7 +31,7 @@ class QueryTests {
     fun updateTest() {
         UpdateCustomer(Customer(1, "Johnnie")).execute()
 
-        val updatedName = SelectCustomer().byId(1).name
+        val updatedName = SelectCustomer().byId(1)?.name
 
         assertEquals("Johnnie", updatedName)
     }
@@ -48,13 +46,13 @@ class QueryTests {
 
         assertEquals("Customer(id=${newCustomer.id}, name=Jane)", fromDatabase.toString())
     }
-//
-//    @Test(expected = SQLException::class)
-//    fun deleteTest() {
-//        val id = 1
-//        db.execute { "DELETE FROM customers WHERE id = ${id.p}" }
-//        getCustomerById(1)
-//    }
+
+    @Test
+    fun deleteTest() {
+        val id = 1
+        DeleteCustomer(id).execute()
+        assertNull(SelectCustomer().byId(id))
+    }
 //
 //    @Test
 //    fun resultSetTest() {
