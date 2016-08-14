@@ -519,12 +519,14 @@ abstract class Query<T>() : Expr(null) {
     fun sequence(): Sequence<T> {
         val rs = requireResultSet()
         return object : Iterator<T> {
-            var hasMore = true
-            override fun next() = map(rs)
+            override fun next(): T {
+                tables.forEach { it.rs = rs }
+                return map(rs)
+            }
             override fun hasNext(): Boolean {
-                hasMore = rs.next()
-                if (!hasMore) rs.close()
-                return hasMore
+                val hasNext = rs.next()
+                if (!hasNext) rs.close()
+                return hasNext
             }
         }.asSequence()
     }
