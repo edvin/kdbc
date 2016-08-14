@@ -2,6 +2,7 @@
 
 package kdbc
 
+import kdbc.ConnectionFactory.Companion.transactionContext
 import kdbc.KDBC.Companion.connectionFactory
 import java.io.InputStream
 import java.math.BigDecimal
@@ -380,14 +381,17 @@ fun <Q : Query<*>> Q.db(db: Wrapper?): Q {
     when (db) {
         is Connection -> {
             connection = db
-            autoclose = false
         }
         is DataSource -> {
             connection = db.connection
-            autoclose = true
         }
         else -> throw SQLException("db must be either java.sql.Connection or java.sql.DataSource")
     }
+    return this
+}
+
+fun <Q : Query<*>> Q.autoclose(autoclose: Boolean): Q {
+    this.autoclose = autoclose
     return this
 }
 
@@ -421,7 +425,10 @@ fun transaction(vararg connection: Connection, type: TransactionType = Transacti
 }
 
 internal class ConnectionFactory {
-    val transactionContext = ThreadLocal<TransactionContext>()
+    companion object {
+        internal val transactionContext = ThreadLocal<TransactionContext>()
+        internal val isTransactionActive: Boolean get() = transactionContext.get() != null
+    }
 
     internal var factoryFn: (Query<*>) -> Connection = {
         throw SQLException("No default data source is configured. Use Query.db() or configure `KDBC.dataSourceProvider.\n${it.describe()}")
@@ -441,6 +448,11 @@ class KDBC {
         fun setConnectionFactory(factoryFn: (Query<*>) -> Connection) {
             connectionFactory.factoryFn = factoryFn
         }
+
+        fun setDataSource(dataSource: DataSource) {
+            setConnectionFactory { dataSource.connection }
+        }
+
     }
 }
 
@@ -449,7 +461,8 @@ abstract class Query<T>() : Expr(null) {
     val tables = mutableListOf<Table>()
     lateinit var stmt: PreparedStatement
     var connection: Connection? = null
-    var autoclose = false
+    var autoclose: Boolean = true
+    private var vetoclose: Boolean = false
 
     /**
      * Convert a result row into the query result object. Instead of extracting
@@ -520,15 +533,17 @@ abstract class Query<T>() : Expr(null) {
             }
             override fun hasNext(): Boolean {
                 val hasNext = rs.next()
-                if (!hasNext) rs.close()
+                if (!hasNext) {
+                    rs.close()
+                    checkClose()
+                }
                 return hasNext
             }
         }.asSequence()
     }
 
     private fun requireResultSet(): ResultSet {
-        val configuredToClose = autoclose
-        autoclose = false
+        vetoclose = true
         try {
             val result = execute()
             if (!result.hasResultSet) {
@@ -536,13 +551,18 @@ abstract class Query<T>() : Expr(null) {
                 throw SQLException("List was requested but query returned no ResultSet.\n${describe()}")
             }
         } finally {
-            autoclose = configuredToClose
+            vetoclose = false
         }
         return stmt.resultSet
     }
 
+    /**
+     * Should we close this connection? Unless spesifically stopped via vetoclose
+     * a connection will close if autoclose is set or if this query does not
+     * participate in a transaction.
+     */
     private fun checkClose() {
-        if (autoclose) logErrors("Closing connection") { connection!!.close() }
+        if (!vetoclose && (autoclose == true || !ConnectionFactory.isTransactionActive)) logErrors("Closing connection") { connection!!.close() }
     }
 
     val resultSet: ResultSet get() = stmt.resultSet!!
@@ -594,7 +614,7 @@ abstract class Query<T>() : Expr(null) {
         } catch (ex: Exception) {
             throw SQLException("${ex.message}\n\n${describe()}", ex)
         } finally {
-            if (autoclose && hasResultSet == false) connection!!.close()
+            if (hasResultSet == false) checkClose()
         }
     }
 
@@ -658,7 +678,7 @@ abstract class Query<T>() : Expr(null) {
         s.append("Query    : ${this}\n")
         s.append("SQL      : ${render().replace(Regex("[^\\s]\n"), " ").replace(Regex("[\\s]\n"), " ")}\n")
         s.append("Params   : $params")
-        val transaction = connectionFactory.transactionContext.get()
+        val transaction = transactionContext.get()
         if (transaction != null) s.append("\nTX ID    : ${transaction.id}")
         return s.toString()
     }
@@ -736,13 +756,13 @@ internal class TransactionContext(val type: TransactionType) {
     }
 
     fun execute(op: () -> Unit) {
-        val activeContext = connectionFactory.transactionContext.get()
+        val activeContext = transactionContext.get()
 
         if (type == TransactionType.REQUIRED) {
             if (activeContext != null) trackChildContext(this)
-            else connectionFactory.transactionContext.set(this)
+            else transactionContext.set(this)
         } else if (type == TransactionType.REQUIRES_NEW) {
-            connectionFactory.transactionContext.set(this)
+            transactionContext.set(this)
         }
 
         var failed = false
@@ -775,7 +795,7 @@ internal class TransactionContext(val type: TransactionType) {
                 }
             }
 
-            connectionFactory.transactionContext.set(activeContext)
+            transactionContext.set(activeContext)
         }
     }
 }
