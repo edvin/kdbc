@@ -653,7 +653,7 @@ abstract class Query<T>() : Expr(null) {
 }
 
 data class ExecutionResult<T>(val query: Query<T>, val hasResultSet: Boolean, val updates: List<Long>) {
-    val updatedRows: Long = updates.sum()
+    val updatedRows: Long get() = updates.sum()
 }
 
 interface TypeHandler<in T> {
