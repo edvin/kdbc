@@ -26,6 +26,7 @@ class JoinDiscriminatorExpr(val discriminator: String, parent: Expr) : Expr(pare
         super.render(s)
     }
 }
+
 class JoinOnExpr(parent: Expr) : Expr(parent)
 
 class JoinExpr(val table: Table, parent: Expr) : Expr(parent) {
@@ -79,6 +80,7 @@ class GroupByExpr(sql: String, parent: Expr) : Expr(parent) {
     init {
         add(StringExpr(sql, this))
     }
+
     override fun render(s: StringBuilder) {
         s.append("\nGROUP BY ")
         super.render(s)
@@ -196,6 +198,7 @@ class ComparisonExpr(val column: Any?, val sign: String, val value: Any?, parent
         if (transform != null) s.append(")")
     }
 }
+
 abstract class Expr(val parent: Expr?) {
     companion object {
         val NoSpaceWhenLastChar = arrayOf(' ', '(', ')', '\n')
@@ -266,7 +269,7 @@ abstract class Expr(val parent: Expr?) {
     fun HAVING(op: HavingExpr.() -> Unit) = add(HavingExpr(this), op)
 
     fun <T> BATCH(entities: Iterable<T>, large: Boolean = false, op: (BatchExpr<T>).(T) -> Unit) =
-        add(BatchExpr(entities, large, op, this))
+            add(BatchExpr(entities, large, op, this))
 
     fun SELECT(vararg columns: Column<*>, op: (SelectExpr.() -> Unit)? = null) =
             add(SelectExpr(columns.toList(), this), op)
@@ -274,14 +277,14 @@ abstract class Expr(val parent: Expr?) {
     fun SELECT(columns: Iterable<Column<*>>, op: (SelectExpr.() -> Unit)? = null) =
             add(SelectExpr(columns.toList(), this), op)
 
-    fun <T: Table> UPDATE(table: T, op: SetExpr.() -> Unit): UpdateExpr {
+    fun <T : Table> UPDATE(table: T, op: SetExpr.() -> Unit): UpdateExpr {
         val updateExpr = add(UpdateExpr(table, this))
         updateExpr.add(SetExpr(updateExpr), op)
         return updateExpr
     }
 
-    fun <T: Table> INSERT(table: T, op: InsertExpr.() -> Unit)
-        = add(InsertExpr(table, this), op)
+    fun <T : Table> INSERT(table: T, op: InsertExpr.() -> Unit)
+            = add(InsertExpr(table, this), op)
 
     fun DELETE(table: Table, op: (DeleteExpr.() -> Unit)? = null) =
             add(DeleteExpr(table, this), op)
@@ -388,7 +391,7 @@ fun <Q : Query<*>> Q.db(db: Wrapper?): Q {
     return this
 }
 
-fun <Q: Query<*>> Q.close(close: Boolean): Q {
+fun <Q : Query<*>> Q.close(close: Boolean): Q {
     this.close = close
     return this
 }
@@ -511,6 +514,19 @@ abstract class Query<T>() : Expr(null) {
         } finally {
             checkClose()
         }
+    }
+
+    fun sequence(): Sequence<T> {
+        val rs = requireResultSet()
+        return object : Iterator<T> {
+            var hasMore = true
+            override fun next() = map(rs)
+            override fun hasNext(): Boolean {
+                hasMore = rs.next()
+                if (!hasMore) rs.close()
+                return hasMore
+            }
+        }.asSequence()
     }
 
     private fun requireResultSet(): ResultSet {
