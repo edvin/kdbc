@@ -1,7 +1,8 @@
+package no.tornado.kdbc.tests
+
 import kdbc.KDBC
 import kdbc.execute
 import kdbc.transaction
-import models.*
 import org.h2.jdbcx.JdbcDataSource
 import org.junit.Assert.*
 import org.junit.Test
@@ -51,7 +52,7 @@ class QueryTests {
 
     @Test
     fun deleteTest() {
-        DeleteCustomer(1)()
+        (DeleteCustomer(1))()
         assertNull(SelectCustomer().byId(1))
     }
 
