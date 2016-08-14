@@ -46,7 +46,7 @@ class JoinExpr(val table: Table, parent: Expr) : Expr(parent) {
     }
 }
 
-class BatchExpr<T>(val entities: Iterable<T>, val op: (BatchExpr<T>).(T) -> Unit, parent: Expr) : Expr(parent)
+class BatchExpr<T>(val entities: Iterable<T>, val large: Boolean, val op: (BatchExpr<T>).(T) -> Unit, parent: Expr) : Expr(parent)
 
 class SelectExpr(val columns: List<Column<*>>, parent: Expr) : Expr(parent) {
     override fun render(s: StringBuilder) {
@@ -265,8 +265,8 @@ abstract class Expr(val parent: Expr?) {
 
     fun HAVING(op: HavingExpr.() -> Unit) = add(HavingExpr(this), op)
 
-    fun <T> BATCH(entities: Iterable<T>, op: (BatchExpr<T>).(T) -> Unit) =
-        add(BatchExpr(entities, op, this))
+    fun <T> BATCH(entities: Iterable<T>, large: Boolean = false, op: (BatchExpr<T>).(T) -> Unit) =
+        add(BatchExpr(entities, large, op, this))
 
     fun SELECT(vararg columns: Column<*>, op: (SelectExpr.() -> Unit)? = null) =
             add(SelectExpr(columns.toList(), this), op)
@@ -446,7 +446,7 @@ class KDBC {
     }
 }
 
-abstract class Query<out T>() : Expr(null) {
+abstract class Query<T>() : Expr(null) {
     private var withGeneratedKeys: (ResultSet.(Int) -> Unit)? = null
     val tables = mutableListOf<Table>()
     lateinit var stmt: PreparedStatement
@@ -517,8 +517,8 @@ abstract class Query<out T>() : Expr(null) {
         val configuredToClose = close
         close = false
         try {
-            val hasResultSet = execute()
-            if (!hasResultSet) {
+            val result = execute()
+            if (!result.hasResultSet) {
                 checkClose()
                 throw SQLException("List was requested but query returned no ResultSet.\n${describe()}")
             }
@@ -539,7 +539,7 @@ abstract class Query<out T>() : Expr(null) {
     /**
      * Gather parameters, render the SQL, prepare the statement and execute the query.
      */
-    fun execute(): Boolean {
+    fun execute(): ExecutionResult<T> {
         if (connection == null) db(connectionFactory.borrow(this))
         var hasResultSet: Boolean? = null
         try {
@@ -567,16 +567,16 @@ abstract class Query<out T>() : Expr(null) {
                     batch.expressions.clear()
                 }
 
-                stmt.executeBatch()
+                val updates = if (batch.large) stmt.executeLargeBatch().toList() else stmt.executeBatch().map { it.toLong() }
                 connection!!.commit()
                 if (wasAutoCommit) connection!!.autoCommit = true
-                return false
+                return ExecutionResult(this, false, updates)
             } else {
                 stmt = connection!!.prepareStatement(render(), keyStrategy)
                 applyParameters()
                 hasResultSet = stmt.execute()
                 handleGeneratedKeys()
-                return hasResultSet
+                return ExecutionResult(this, hasResultSet, listOf(stmt.updateCount.toLong()))
             }
         } catch (ex: Exception) {
             throw SQLException("${ex.message}\n\n${describe()}", ex)
@@ -650,6 +650,10 @@ abstract class Query<out T>() : Expr(null) {
         return s.toString()
     }
 
+}
+
+data class ExecutionResult<T>(val query: Query<T>, val hasResultSet: Boolean, val updates: List<Long>) {
+    val updatedRows: Long = updates.sum()
 }
 
 interface TypeHandler<in T> {
