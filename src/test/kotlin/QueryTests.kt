@@ -12,11 +12,12 @@ class QueryTests {
         init {
             JdbcDataSource().apply {
                 setURL("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1")
-                execute("CREATE TABLE customer (id integer not null primary key auto_increment, name text)")
-                execute("INSERT INTO customer (name) VALUES ('John')")
-                execute("INSERT INTO customer (name) VALUES ('Jill')")
-
                 KDBC.setConnectionFactory { connection }
+
+                execute("CREATE TABLE customer (id integer not null primary key auto_increment, name text)")
+
+                val customers = listOf(Customer(name = "John"), Customer(name = "Jill"))
+                InsertCustomersInBatch(customers).execute()
             }
         }
     }

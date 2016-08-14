@@ -46,6 +46,8 @@ class JoinExpr(val table: Table, parent: Expr) : Expr(parent) {
     }
 }
 
+class BatchExpr<T>(val entities: Iterable<T>, val op: (BatchExpr<T>).(T) -> Unit, parent: Expr) : Expr(parent)
+
 class SelectExpr(val columns: List<Column<*>>, parent: Expr) : Expr(parent) {
     override fun render(s: StringBuilder) {
         s.append("SELECT ")
@@ -263,6 +265,9 @@ abstract class Expr(val parent: Expr?) {
 
     fun HAVING(op: HavingExpr.() -> Unit) = add(HavingExpr(this), op)
 
+    fun <T> BATCH(entities: Iterable<T>, op: (BatchExpr<T>).(T) -> Unit) =
+        add(BatchExpr(entities, op, this))
+
     fun SELECT(vararg columns: Column<*>, op: (SelectExpr.() -> Unit)? = null) =
             add(SelectExpr(columns.toList(), this), op)
 
@@ -421,7 +426,7 @@ internal class ConnectionFactory {
     val transactionContext = ThreadLocal<TransactionContext>()
 
     internal var factoryFn: (Query<*>) -> Connection = {
-        throw SQLException("No default data source factoryFn is configured. Use Query.db() or configure `KDBC.dataSourceProvider.\n${it.describe()}")
+        throw SQLException("No default data source is configured. Use Query.db() or configure `KDBC.dataSourceProvider.\n${it.describe()}")
     }
 
     internal fun borrow(query: Query<*>): Connection {
@@ -538,14 +543,41 @@ abstract class Query<out T>() : Expr(null) {
         if (connection == null) db(connectionFactory.borrow(this))
         var hasResultSet: Boolean? = null
         try {
-            val sql = render()
             val keyStrategy = if (withGeneratedKeys != null) PreparedStatement.RETURN_GENERATED_KEYS
             else PreparedStatement.NO_GENERATED_KEYS
-            stmt = connection!!.prepareStatement(sql, keyStrategy)
-            applyParameters()
-            hasResultSet = stmt.execute()
-            handleGeneratedKeys()
-            return hasResultSet
+
+            val batch = expressions.first() as? BatchExpr<Any>
+            if (batch != null) {
+                val wasAutoCommit = connection!!.autoCommit
+                connection!!.autoCommit = false
+
+                val iterator = batch.entities.iterator()
+                if (!iterator.hasNext()) throw SQLException("Batch expression with no entities.\n${describe()}")
+                var first = true
+
+                while (iterator.hasNext()) {
+                    batch.op(batch, iterator.next())
+                    if (first) {
+                        stmt = connection!!.prepareStatement(render(), keyStrategy)
+                        first = false
+                    }
+                    applyParameters()
+                    handleGeneratedKeys()
+                    stmt.addBatch()
+                    batch.expressions.clear()
+                }
+
+                stmt.executeBatch()
+                connection!!.commit()
+                if (wasAutoCommit) connection!!.autoCommit = true
+                return false
+            } else {
+                stmt = connection!!.prepareStatement(render(), keyStrategy)
+                applyParameters()
+                hasResultSet = stmt.execute()
+                handleGeneratedKeys()
+                return hasResultSet
+            }
         } catch (ex: Exception) {
             throw SQLException("${ex.message}\n\n${describe()}", ex)
         } finally {

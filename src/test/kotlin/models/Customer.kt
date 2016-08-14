@@ -25,6 +25,19 @@ class InsertCustomer(customer: Customer) : Insert() {
     }
 }
 
+class InsertCustomersInBatch(customers: List<Customer>) : Insert() {
+    val c = CustomerTable()
+
+    init {
+        // H2 Does not support generated keys in batch, so we can't retrieve them with `generatedKeys { }` here
+        BATCH(customers) { customer ->
+            INSERT(c) {
+                c.name TO customer.name
+            }
+        }
+    }
+}
+
 class SelectCustomer() : Query<Customer>() {
     val c = CustomerTable()
 
