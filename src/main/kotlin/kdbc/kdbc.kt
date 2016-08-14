@@ -380,19 +380,14 @@ fun <Q : Query<*>> Q.db(db: Wrapper?): Q {
     when (db) {
         is Connection -> {
             connection = db
-            close = false
+            autoclose = false
         }
         is DataSource -> {
             connection = db.connection
-            close = true
+            autoclose = true
         }
         else -> throw SQLException("db must be either java.sql.Connection or java.sql.DataSource")
     }
-    return this
-}
-
-fun <Q : Query<*>> Q.close(close: Boolean): Q {
-    this.close = close
     return this
 }
 
@@ -454,7 +449,7 @@ abstract class Query<T>() : Expr(null) {
     val tables = mutableListOf<Table>()
     lateinit var stmt: PreparedStatement
     var connection: Connection? = null
-    var close = false
+    var autoclose = false
 
     /**
      * Convert a result row into the query result object. Instead of extracting
@@ -532,8 +527,8 @@ abstract class Query<T>() : Expr(null) {
     }
 
     private fun requireResultSet(): ResultSet {
-        val configuredToClose = close
-        close = false
+        val configuredToClose = autoclose
+        autoclose = false
         try {
             val result = execute()
             if (!result.hasResultSet) {
@@ -541,13 +536,13 @@ abstract class Query<T>() : Expr(null) {
                 throw SQLException("List was requested but query returned no ResultSet.\n${describe()}")
             }
         } finally {
-            close = configuredToClose
+            autoclose = configuredToClose
         }
         return stmt.resultSet
     }
 
     private fun checkClose() {
-        if (close) logErrors("Closing connection") { connection!!.close() }
+        if (autoclose) logErrors("Closing connection") { connection!!.close() }
     }
 
     val resultSet: ResultSet get() = stmt.resultSet!!
@@ -599,7 +594,7 @@ abstract class Query<T>() : Expr(null) {
         } catch (ex: Exception) {
             throw SQLException("${ex.message}\n\n${describe()}", ex)
         } finally {
-            if (close && hasResultSet == false) connection!!.close()
+            if (autoclose && hasResultSet == false) connection!!.close()
         }
     }
 
