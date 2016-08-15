@@ -6,7 +6,10 @@ import kdbc.ConnectionFactory.Companion.transactionContext
 import kdbc.KDBC.Companion.connectionFactory
 import java.io.InputStream
 import java.math.BigDecimal
-import java.sql.*
+import java.sql.Connection
+import java.sql.PreparedStatement
+import java.sql.ResultSet
+import java.sql.SQLException
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -377,16 +380,8 @@ abstract class Delete : Query<Any>() {
     final override fun map(rs: ResultSet) = throw UnsupportedOperationException()
 }
 
-fun <Q : Query<*>> Q.db(db: Wrapper?): Q {
-    when (db) {
-        is Connection -> {
-            connection = db
-        }
-        is DataSource -> {
-            connection = db.connection
-        }
-        else -> throw SQLException("db must be either java.sql.Connection or java.sql.DataSource")
-    }
+fun <Q : Query<*>> Q.connection(connection: Connection): Q {
+    this.connection = connection
     return this
 }
 
@@ -579,7 +574,7 @@ abstract class Query<T>() : Expr(null) {
      */
     fun execute(): ExecutionResult<T> {
         if (connection == null) {
-            db(connectionFactory.borrow(this))
+            connection(connectionFactory.borrow(this))
         } else {
             val activeTransaction = transactionContext.get()
             if (activeTransaction != null && activeTransaction.connection == null)
