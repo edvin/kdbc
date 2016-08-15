@@ -19,8 +19,6 @@ class QueryTests {
                     createTable(CustomerTable::class)
                     close()
                 }
-                execute("CREATE TABLE customer (id integer not null primary key auto_increment, name text)")
-
                 val customers = listOf(Customer(name = "John"), Customer(name = "Jill"))
                 InsertCustomersInBatch(customers).execute()
             }
