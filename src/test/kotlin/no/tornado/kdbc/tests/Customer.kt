@@ -1,15 +1,17 @@
 package no.tornado.kdbc.tests
 
+import kdbc.*
+
 data class Customer(var id: Int? = null, var name: String) {
     constructor(t: CustomerTable) : this(t.id(), t.name())
 }
 
-class CustomerTable : kdbc.Table("customer") {
+class CustomerTable : Table("customer") {
     val id by column { getInt(it) }
     val name by column { getString(it) }
 }
 
-class InsertCustomer(customer: Customer) : kdbc.Insert() {
+class InsertCustomer(customer: Customer) : Insert() {
     val c = CustomerTable()
 
     init {
@@ -22,7 +24,7 @@ class InsertCustomer(customer: Customer) : kdbc.Insert() {
     }
 }
 
-class InsertCustomersInBatch(customers: List<Customer>) : kdbc.Insert() {
+class InsertCustomersInBatch(customers: List<Customer>) : Insert() {
     val c = CustomerTable()
 
     init {
@@ -35,7 +37,7 @@ class InsertCustomersInBatch(customers: List<Customer>) : kdbc.Insert() {
     }
 }
 
-class SelectCustomer() : kdbc.Query<Customer>() {
+class SelectCustomer() : Query<Customer>() {
     val c = CustomerTable()
 
     init {
@@ -56,7 +58,7 @@ class SelectCustomer() : kdbc.Query<Customer>() {
     override fun map(rs: java.sql.ResultSet) = Customer(c)
 }
 
-class UpdateCustomer(customer: Customer) : kdbc.Update() {
+class UpdateCustomer(customer: Customer) : Update() {
     val c = CustomerTable()
 
     init {
@@ -69,7 +71,7 @@ class UpdateCustomer(customer: Customer) : kdbc.Update() {
     }
 }
 
-class DeleteCustomer(id: Int) : kdbc.Delete() {
+class DeleteCustomer(id: Int) : Delete() {
     val c = CustomerTable()
 
     init {
