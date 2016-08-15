@@ -408,8 +408,8 @@ enum class TransactionType { REQUIRED, REQUIRES_NEW }
 /**
  * Make sure the surrounded code is executed within a transaction.
  *
- * All connections borrowed from the ConnectionFactory are automatically tracked,
- * as well as connections added to the this function via the `connection` parameter.
+ * All queries will use the same connection by default. To create a new connection that will
+ * participate in the transaction, nest another `transaction` block inside this.
  *
  * By default, the TransactionType.REQUIRED attribute indicates that this transaction
  * can participate in an already active transaction or create it's own.
@@ -417,10 +417,12 @@ enum class TransactionType { REQUIRED, REQUIRES_NEW }
  * Changing to TransactionType.REQUIRES_NEW will temporarily suspend any action transactions,
  * and resume them after this block completes.
  *
+ * If no connection is specified, the connection retrieved for the first query executed inside the transaction block will be used.
+ *
  */
-fun transaction(vararg connection: Connection, type: TransactionType = TransactionType.REQUIRED, op: () -> Unit) {
+fun transaction(connection: Connection? = null, type: TransactionType = TransactionType.REQUIRED, op: () -> Unit) {
     val context = TransactionContext(type)
-    for (c in connection) context.trackConnection(c)
+    if (connection != null) context.trackConnection(connection)
     context.execute(op)
 }
 
@@ -435,8 +437,10 @@ internal class ConnectionFactory {
     }
 
     internal fun borrow(query: Query<*>): Connection {
+        val activeTransaction = transactionContext.get()
+        if (activeTransaction?.connection != null) return activeTransaction.connection!!
         val connection = factoryFn(query)
-        transactionContext.get()?.trackConnection(connection)
+        activeTransaction?.trackConnection(connection)
         return connection
     }
 }
@@ -531,6 +535,7 @@ abstract class Query<T>() : Expr(null) {
                 tables.forEach { it.rs = rs }
                 return map(rs)
             }
+
             override fun hasNext(): Boolean {
                 val hasNext = rs.next()
                 if (!hasNext) {
@@ -573,7 +578,13 @@ abstract class Query<T>() : Expr(null) {
      * Gather parameters, render the SQL, prepare the statement and execute the query.
      */
     fun execute(): ExecutionResult<T> {
-        if (connection == null) db(connectionFactory.borrow(this))
+        if (connection == null) {
+            db(connectionFactory.borrow(this))
+        } else {
+            val activeTransaction = transactionContext.get()
+            if (activeTransaction != null && activeTransaction.connection == null)
+                activeTransaction.connection = connection
+        }
         var hasResultSet: Boolean? = null
         try {
             val keyStrategy = if (withGeneratedKeys != null) PreparedStatement.RETURN_GENERATED_KEYS
@@ -712,12 +723,13 @@ fun ResultSet.getLocalDate(label: String) = getDate(label).toLocalDate()
 
 internal class TransactionContext(val type: TransactionType) {
     val id = UUID.randomUUID()
-    private val connections = mutableListOf<Connection>()
     private val childContexts = mutableListOf<TransactionContext>()
+    internal var connection: Connection? = null
 
-    fun trackConnection(connection: Connection) {
-        connection.autoCommit = false
-        connections.add(connection)
+    fun trackConnection(connection: Connection): TransactionContext {
+        if (connection.autoCommit) connection.autoCommit = false
+        this.connection = connection
+        return this
     }
 
     fun trackChildContext(context: TransactionContext) {
@@ -725,33 +737,33 @@ internal class TransactionContext(val type: TransactionType) {
     }
 
     fun rollback() {
-        connections.forEach { silentlyRollback(it) }
+        connection?.silentlyRollback()
         childContexts.forEach { it.rollback() }
         cleanup()
     }
 
     fun commit() {
-        connections.forEach { silentlyCommit(it) }
+        connection?.silentlyCommit()
         childContexts.forEach { it.commit() }
         cleanup()
     }
 
     private fun cleanup() {
-        connections.clear()
+        connection = null
         childContexts.clear()
     }
 
-    private fun silentlyCommit(connection: Connection) {
-        logErrors("Committing connection $connection") {
-            connection.commit()
-            connection.close()
+    private fun Connection.silentlyCommit() {
+        logErrors("Committing connection $this") {
+            commit()
+            close()
         }
     }
 
-    private fun silentlyRollback(connection: Connection) {
-        logErrors("Rolling back connection $connection") {
-            connection.rollback()
-            connection.close()
+    private fun Connection.silentlyRollback() {
+        logErrors("Rolling back connection $this") {
+            rollback()
+            close()
         }
     }
 
@@ -820,6 +832,10 @@ class ColumnDelegate<T>(val getter: ResultSet.(String) -> T) : ReadOnlyProperty<
         })
         return instance!!
     }
+}
+
+class CustomerTable : Table("customer") {
+    val id by column { getInt(it) }
 }
 
 abstract class Table(val tableName: String) {

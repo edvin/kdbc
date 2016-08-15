@@ -1,7 +1,7 @@
 package no.tornado.kdbc.tests
 
 data class Customer(var id: Int? = null, var name: String) {
-    constructor(t: no.tornado.kdbc.tests.CustomerTable) : this(t.id(), t.name())
+    constructor(t: CustomerTable) : this(t.id(), t.name())
 }
 
 class CustomerTable : kdbc.Table("customer") {
@@ -10,7 +10,7 @@ class CustomerTable : kdbc.Table("customer") {
 }
 
 class InsertCustomer(customer: no.tornado.kdbc.tests.Customer) : kdbc.Insert() {
-    val c = no.tornado.kdbc.tests.CustomerTable()
+    val c = CustomerTable()
 
     init {
         INSERT(c) {
