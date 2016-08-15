@@ -9,7 +9,7 @@ class CustomerTable : kdbc.Table("customer") {
     val name by column { getString(it) }
 }
 
-class InsertCustomer(customer: no.tornado.kdbc.tests.Customer) : kdbc.Insert() {
+class InsertCustomer(customer: Customer) : kdbc.Insert() {
     val c = CustomerTable()
 
     init {
@@ -22,8 +22,8 @@ class InsertCustomer(customer: no.tornado.kdbc.tests.Customer) : kdbc.Insert() {
     }
 }
 
-class InsertCustomersInBatch(customers: List<no.tornado.kdbc.tests.Customer>) : kdbc.Insert() {
-    val c = no.tornado.kdbc.tests.CustomerTable()
+class InsertCustomersInBatch(customers: List<Customer>) : kdbc.Insert() {
+    val c = CustomerTable()
 
     init {
         // H2 Does not support generated keys in batch, so we can't retrieve them with `generatedKeys { }` here
@@ -36,28 +36,28 @@ class InsertCustomersInBatch(customers: List<no.tornado.kdbc.tests.Customer>) : 
 }
 
 class SelectCustomer() : kdbc.Query<Customer>() {
-    val c = no.tornado.kdbc.tests.CustomerTable()
+    val c = CustomerTable()
 
     init {
         SELECT(c.columns)
         FROM(c)
     }
 
-    fun byId(id: Int): no.tornado.kdbc.tests.Customer? = let {
+    fun byId(id: Int): Customer? = let {
         WHERE { c.id EQ id }
         firstOrNull()
     }
 
-    fun search(name: String): List<no.tornado.kdbc.tests.Customer> = let {
+    fun search(name: String): List<Customer> = let {
         WHERE { UPPER(c.name) LIKE UPPER("%$name%") }
         list()
     }
 
-    override fun map(rs: java.sql.ResultSet) = no.tornado.kdbc.tests.Customer(c)
+    override fun map(rs: java.sql.ResultSet) = Customer(c)
 }
 
-class UpdateCustomer(customer: no.tornado.kdbc.tests.Customer) : kdbc.Update() {
-    val c = no.tornado.kdbc.tests.CustomerTable()
+class UpdateCustomer(customer: Customer) : kdbc.Update() {
+    val c = CustomerTable()
 
     init {
         UPDATE(c) {
@@ -70,7 +70,7 @@ class UpdateCustomer(customer: no.tornado.kdbc.tests.Customer) : kdbc.Update() {
 }
 
 class DeleteCustomer(id: Int) : kdbc.Delete() {
-    val c = no.tornado.kdbc.tests.CustomerTable()
+    val c = CustomerTable()
 
     init {
         DELETE(c) { c.id EQ id }
