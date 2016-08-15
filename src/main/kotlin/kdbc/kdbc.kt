@@ -426,7 +426,7 @@ fun transaction(connection: Connection? = null, type: TransactionType = Transact
     context.execute(op)
 }
 
-internal class ConnectionFactory {
+class ConnectionFactory {
     companion object {
         internal val transactionContext = ThreadLocal<TransactionContext>()
         internal val isTransactionActive: Boolean get() = transactionContext.get() != null
@@ -447,7 +447,7 @@ internal class ConnectionFactory {
 
 class KDBC {
     companion object {
-        internal val connectionFactory = ConnectionFactory()
+        val connectionFactory = ConnectionFactory()
 
         fun setConnectionFactory(factoryFn: (Query<*>) -> Connection) {
             connectionFactory.factoryFn = factoryFn
@@ -687,7 +687,7 @@ abstract class Query<T>() : Expr(null) {
     fun describe(): String {
         val s = StringBuilder()
         s.append("Query    : ${this}\n")
-        s.append("SQL      : ${render().replace(Regex("[^\\s]\n"), " ").replace(Regex("[\\s]\n"), " ")}\n")
+        s.append("SQL      : ${render().replace("\n", "           \n")}\n")
         s.append("Params   : $params")
         val transaction = transactionContext.get()
         if (transaction != null) s.append("\nTX ID    : ${transaction.id}")
@@ -841,7 +841,7 @@ class CustomerTable : Table("customer") {
 abstract class Table(val tableName: String) {
     var tableAlias: String? = null
     var rs: ResultSet? = null
-    fun <T> column(getter: ResultSet.(String) -> T) = ColumnDelegate(getter)
+    protected fun <T> column(getter: ResultSet.(String) -> T) = ColumnDelegate(getter)
     override fun toString() = if (tableAlias.isNullOrBlank() || tableAlias == tableName) tableName else "$tableName $tableAlias"
     val columns: List<Column<*>> get() = javaClass.declaredMethods
             .filter { Column::class.java.isAssignableFrom(it.returnType) }
