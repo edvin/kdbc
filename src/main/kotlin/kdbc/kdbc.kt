@@ -562,7 +562,7 @@ abstract class Query<T>() : Expr(null) {
      * participate in a transaction.
      */
     private fun checkClose() {
-        if (!vetoclose && (autoclose == true || !ConnectionFactory.isTransactionActive)) logErrors("Closing connection") { connection!!.close() }
+        if (!vetoclose && !ConnectionFactory.Companion.isTransactionActive && autoclose) logErrors("Closing connection") { connection!!.close() }
     }
 
     val resultSet: ResultSet get() = stmt.resultSet!!
