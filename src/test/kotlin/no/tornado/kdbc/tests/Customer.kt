@@ -7,8 +7,8 @@ data class Customer(var id: Int? = null, var name: String) {
 }
 
 class CustomerTable : Table("customer") {
-    val id by column { getInt(it) }
-    val name by column { getString(it) }
+    val id by column("id integer not null primary key auto_increment") { getInt(it) }
+    val name by column("text") { getString(it) }
 }
 
 class InsertCustomer(customer: Customer) : Insert() {

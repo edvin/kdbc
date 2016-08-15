@@ -807,7 +807,7 @@ internal class TransactionContext(val type: TransactionType) {
     }
 }
 
-class Column<out T>(val table: Table, val name: String, val getter: ResultSet.(String) -> T?, var rs: () -> ResultSet) {
+class Column<out T>(val table: Table, val name: String, val ddl: String?, val getter: ResultSet.(String) -> T?, var rs: () -> ResultSet) {
     override fun toString() = fullName
     val fullName: String get() = if (table.tableAlias != null) "${table.tableAlias}.$name" else name
     val alias: String get() = fullName.replace(".", "_")
@@ -819,10 +819,10 @@ class Column<out T>(val table: Table, val name: String, val getter: ResultSet.(S
     operator fun invoke(): T = v
 }
 
-class ColumnDelegate<T>(val getter: ResultSet.(String) -> T) : ReadOnlyProperty<Table, Column<T>> {
+class ColumnDelegate<T>(val ddl: String? = null, val getter: ResultSet.(String) -> T) : ReadOnlyProperty<Table, Column<T>> {
     var instance: Column<T>? = null
     override fun getValue(thisRef: Table, property: KProperty<*>): Column<T> {
-        if (instance == null) instance = Column(thisRef, property.name, getter, {
+        if (instance == null) instance = Column(thisRef, property.name, ddl, getter, {
             thisRef.rs ?: throw SQLException("ResultSet was not configured when column value was requested")
         })
         return instance!!
@@ -836,7 +836,7 @@ class CustomerTable : Table("customer") {
 abstract class Table(val tableName: String) {
     var tableAlias: String? = null
     var rs: ResultSet? = null
-    protected fun <T> column(getter: ResultSet.(String) -> T) = ColumnDelegate(getter)
+    protected fun <T> column(ddl: String? = null, getter: ResultSet.(String) -> T) = ColumnDelegate(ddl, getter)
     override fun toString() = if (tableAlias.isNullOrBlank() || tableAlias == tableName) tableName else "$tableName $tableAlias"
     val columns: List<Column<*>> get() = javaClass.declaredMethods
             .filter { Column::class.java.isAssignableFrom(it.returnType) }
@@ -845,7 +845,23 @@ abstract class Table(val tableName: String) {
                 it.invoke(this) as Column<*>
             }
 
+    fun ddl(dropIfExists: Boolean): String {
+        val s = StringBuilder()
+        if (dropIfExists) s.append("DROP TABLE IF EXISTS $tableName;\n")
+        s.append("CREATE TABLE $tableName (\n")
+        val ddls = columns.filter { it.ddl != null }.iterator()
+        while (ddls.hasNext()) {
+            val c = ddls.next()
+            s.append("\t").append(c.name).append(" ").append(c.ddl)
+            if (ddls.hasNext()) s.append(",\n")
+        }
+        s.append(")")
+        return s.toString()
+    }
 }
+
+fun <T : Table> Connection.createTable(tableClass: KClass<T>, dropIfExists: Boolean = false) =
+    execute(tableClass.java.newInstance().ddl(dropIfExists))
 
 infix fun <T : Table> T.AS(alias: String): T {
     tableAlias = alias

@@ -1,6 +1,7 @@
 package no.tornado.kdbc.tests
 
 import kdbc.KDBC
+import kdbc.createTable
 import kdbc.execute
 import kdbc.transaction
 import org.h2.jdbcx.JdbcDataSource
@@ -13,8 +14,11 @@ class QueryTests {
         init {
             JdbcDataSource().apply {
                 setURL("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1")
-                KDBC.setConnectionFactory { connection }
-
+                KDBC.setDataSource(this)
+                with(connection) {
+                    createTable(CustomerTable::class)
+                    close()
+                }
                 execute("CREATE TABLE customer (id integer not null primary key auto_increment, name text)")
 
                 val customers = listOf(Customer(name = "John"), Customer(name = "Jill"))
