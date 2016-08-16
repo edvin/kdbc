@@ -2,7 +2,6 @@ package no.tornado.kdbc.tests
 
 import kdbc.KDBC
 import kdbc.createTable
-import kdbc.execute
 import kdbc.transaction
 import org.h2.jdbcx.JdbcDataSource
 import org.junit.Assert.*
@@ -68,15 +67,19 @@ class QueryTests {
     }
 
     @Test
-    fun transaction_rollback() {
+    fun nested_transaction_rollback() {
         try {
             transaction {
                 DeleteCustomer(1).execute()
-                throw SQLException("I'm naughty")
+                transaction {
+                    DeleteCustomer(2).execute()
+                    throw SQLException("I'm naughty")
+                }
             }
         } catch (ex: SQLException) {
         }
         assertNotNull("Customer 1 should still be available", SelectCustomer().byId(1))
+        assertNotNull("Customer 2 should still be available", SelectCustomer().byId(2))
     }
 
 }

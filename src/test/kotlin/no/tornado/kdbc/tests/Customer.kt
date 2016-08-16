@@ -37,18 +37,6 @@ class InsertCustomersInBatch(customers: List<Customer>) : Insert() {
     }
 }
 
-fun customerById(id: Int): Customer = first(SelectCustomer()) {
-    WHERE { c.id EQ id }
-}
-
-fun search(term: String): List<Customer> = list {
-    val c = CustomerTable()
-    SELECT(c.columns)
-    FROM(c)
-    WHERE { UPPER(c.name) LIKE UPPER("%$term%") }
-    map { Customer(c) }
-}
-
 class SelectCustomer() : Query<Customer>() {
     val c = CustomerTable()
 

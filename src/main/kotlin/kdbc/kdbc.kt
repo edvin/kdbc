@@ -461,6 +461,7 @@ fun <T> query(op: Query<T>.() -> Unit) = object : Query<T>() {
         op(this)
     }
 }
+
 // Construct ad hoc query and return the first result
 fun <T> first(op: Query<T>.() -> Unit) = query(op).first()
 
@@ -497,7 +498,7 @@ fun <Q : Query<T>, T> sequence(query: Q, op: Q.() -> Unit): Sequence<T> {
     return query.sequence()
 }
 
-abstract class Query<T> : Expr(null) {
+abstract class Query<T>(op: (Query<T>.() -> Unit)? = null) : Expr(null) {
     private var withGeneratedKeys: (ResultSet.(Int) -> Unit)? = null
     val tables = mutableListOf<Table>()
     lateinit var stmt: PreparedStatement
@@ -505,6 +506,10 @@ abstract class Query<T> : Expr(null) {
     var autoclose: Boolean = true
     private var vetoclose: Boolean = false
     private var mapper: (ResultSet) -> T = { throw SQLException("You must provide a mapper to this query by calling map { resultSet -> T } or override `map(ResultSet): T`.\n\n${describe()}") }
+
+    init {
+        op?.invoke(this)
+    }
 
     /**
      * Convert a result row into the query result object. Instead of extracting
@@ -813,7 +818,7 @@ internal class TransactionContext(val type: TransactionType) {
         val activeContext = transactionContext.get()
 
         if (type == TransactionType.REQUIRED) {
-            if (activeContext != null) trackChildContext(this)
+            if (activeContext != null) activeContext.trackChildContext(this)
             else transactionContext.set(this)
         } else if (type == TransactionType.REQUIRES_NEW) {
             transactionContext.set(this)
@@ -839,11 +844,8 @@ internal class TransactionContext(val type: TransactionType) {
                 }
             } else {
                 if (type == TransactionType.REQUIRED) {
-                    if (activeContext != null) {
-                        activeContext.commit()
-                    } else {
+                    if (activeContext == null)
                         commit()
-                    }
                 } else if (type == TransactionType.REQUIRES_NEW) {
                     commit()
                 }
