@@ -53,7 +53,7 @@ class JoinExpr(val table: Table, parent: Expr) : Expr(parent) {
 
 class BatchExpr<T>(val entities: Iterable<T>, val large: Boolean, val op: (BatchExpr<T>).(T) -> Unit, parent: Expr) : Expr(parent)
 
-class SelectExpr(val columns: List<Column<*>>, parent: Expr) : Expr(parent) {
+class SelectExpr(val columns: Iterable<Column<*>>, parent: Expr) : Expr(parent) {
     override fun render(s: StringBuilder) {
         s.append("SELECT ")
         s.append(columns.map { it.asAlias }.joinToString(", "))
@@ -275,11 +275,11 @@ abstract class Expr(val parent: Expr?) {
     fun <T> BATCH(entities: Iterable<T>, large: Boolean = false, op: (BatchExpr<T>).(T) -> Unit) =
             add(BatchExpr(entities, large, op, this))
 
-    fun SELECT(vararg columns: Column<*>, op: (SelectExpr.() -> Unit)? = null) =
-            add(SelectExpr(columns.toList(), this), op)
+    fun SELECT(vararg columns: ColumnOrTable, op: (SelectExpr.() -> Unit)? = null) =
+            add(SelectExpr(columns.flatMap { if (it is Table) it.columns else listOf(it as Column<*>) }, this), op)
 
-    fun SELECT(columns: Iterable<Column<*>>, op: (SelectExpr.() -> Unit)? = null) =
-            add(SelectExpr(columns.toList(), this), op)
+    fun SELECT(columns: Iterable<ColumnOrTable>, op: (SelectExpr.() -> Unit)? = null) =
+            add(SelectExpr(columns.flatMap { if (it is Table) it.columns else listOf(it as Column<*>) }, this), op)
 
     fun <T : Table> UPDATE(table: T, op: SetExpr.() -> Unit): UpdateExpr {
         val updateExpr = add(UpdateExpr(table, this))
@@ -856,7 +856,9 @@ internal class TransactionContext(val type: TransactionType) {
     }
 }
 
-class Column<out T>(val table: Table, val name: String, val ddl: String?, val getter: ResultSet.(String) -> T?, var rs: () -> ResultSet) {
+interface ColumnOrTable
+
+class Column<out T>(val table: Table, val name: String, val ddl: String?, val getter: ResultSet.(String) -> T?, var rs: () -> ResultSet) : ColumnOrTable {
     override fun toString() = fullName
     val fullName: String get() = if (table.tableAlias != null) "${table.tableAlias}.$name" else name
     val alias: String get() = fullName.replace(".", "_")
@@ -882,7 +884,7 @@ class CustomerTable : Table("customer") {
     val id by column { getInt(it) }
 }
 
-abstract class Table(val tableName: String) {
+abstract class Table(val tableName: String): ColumnOrTable {
     var tableAlias: String? = null
     var rs: ResultSet? = null
     protected fun <T> column(ddl: String? = null, getter: ResultSet.(String) -> T) = ColumnDelegate(ddl, getter)

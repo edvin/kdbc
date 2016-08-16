@@ -53,7 +53,7 @@ class QueryTests {
 
     @Test
     fun deleteTest() {
-        (DeleteCustomer(1))()
+        DeleteCustomer(1).execute()
         assertNull(SelectCustomer().byId(1))
     }
 
