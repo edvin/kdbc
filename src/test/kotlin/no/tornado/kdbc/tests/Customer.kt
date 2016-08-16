@@ -37,25 +37,31 @@ class InsertCustomersInBatch(customers: List<Customer>) : Insert() {
     }
 }
 
+fun customerById(id: Int): Customer = first(SelectCustomer()) {
+    WHERE { c.id EQ id }
+}
+
+fun search(term: String): List<Customer> = list {
+    val c = CustomerTable()
+    SELECT(c.columns)
+    FROM(c)
+    WHERE { UPPER(c.name) LIKE UPPER("%$term%") }
+    map { Customer(c) }
+}
+
 class SelectCustomer() : Query<Customer>() {
     val c = CustomerTable()
 
     init {
         SELECT(c.columns)
         FROM(c)
+        map { Customer(c) }
     }
 
     fun byId(id: Int): Customer? = let {
         WHERE { c.id EQ id }
         firstOrNull()
     }
-
-    fun search(name: String): List<Customer> = let {
-        WHERE { UPPER(c.name) LIKE UPPER("%$name%") }
-        list()
-    }
-
-    override fun map(rs: java.sql.ResultSet) = Customer(c)
 }
 
 class UpdateCustomer(customer: Customer) : Update() {

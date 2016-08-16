@@ -455,20 +455,67 @@ class KDBC {
     }
 }
 
-abstract class Query<T>() : Expr(null) {
+// Construct ad hoc query
+fun <T> query(op: Query<T>.() -> Unit) = object : Query<T>() {
+    init {
+        op(this)
+    }
+}
+// Construct ad hoc query and return the first result
+fun <T> first(op: Query<T>.() -> Unit) = query(op).first()
+
+// Construct ad hoc query and return the first result or null
+fun <T> firstOrNull(op: Query<T>.() -> Unit) = query(op).firstOrNull()
+
+// Construct ad hoc query and return the result as a list
+fun <T> list(op: Query<T>.() -> Unit) = query(op).list()
+
+// Construct ad hoc query and execute it
+fun <T> execute(op: Query<T>.() -> Unit) = query(op).execute()
+fun <T> update(op: Query<T>.() -> Unit) = query(op).execute()
+fun <T> insert(op: Query<T>.() -> Unit) = query(op).execute()
+fun <T> delete(op: Query<T>.() -> Unit) = query(op).execute()
+
+// Augment a query and return the first result or null
+fun <Q : Query<T>, T> firstOrNull(query: Q, op: Q.() -> Unit): T? {
+    op(query)
+    return query.firstOrNull()
+}
+
+// Augment a query and return the first result
+fun <Q : Query<T>, T> first(query: Q, op: Q.() -> Unit): T = firstOrNull(query, op)!!
+
+// Augment a query and return a list
+fun <Q : Query<T>, T> list(query: Q, op: Q.() -> Unit): List<T> {
+    op(query)
+    return query.list()
+}
+
+// Augment a query and return a sequence. Important: This must be exhausted to close the connection!
+fun <Q : Query<T>, T> sequence(query: Q, op: Q.() -> Unit): Sequence<T> {
+    op(query)
+    return query.sequence()
+}
+
+abstract class Query<T> : Expr(null) {
     private var withGeneratedKeys: (ResultSet.(Int) -> Unit)? = null
     val tables = mutableListOf<Table>()
     lateinit var stmt: PreparedStatement
     var connection: Connection? = null
     var autoclose: Boolean = true
     private var vetoclose: Boolean = false
+    private var mapper: (ResultSet) -> T = { throw SQLException("You must provide a mapper to this query by calling map { resultSet -> T } or override `map(ResultSet): T`.\n\n${describe()}") }
 
     /**
      * Convert a result row into the query result object. Instead of extracting
      * data from the supplied ResultSet you should extract the data from
      * the Table instances you used to construct the query.
      */
-    abstract fun map(rs: ResultSet): T
+    open fun map(rs: ResultSet): T = mapper(rs)
+
+    fun map(mapper: (ResultSet) -> T) {
+        this.mapper = mapper
+    }
 
     fun generatedKeys(op: ResultSet.(Int) -> Unit) {
         withGeneratedKeys = op
@@ -861,7 +908,7 @@ abstract class Table(val tableName: String) {
 }
 
 fun <T : Table> Connection.createTable(tableClass: KClass<T>, dropIfExists: Boolean = false) =
-    execute(tableClass.java.newInstance().ddl(dropIfExists))
+        execute(tableClass.java.newInstance().ddl(dropIfExists))
 
 infix fun <T : Table> T.AS(alias: String): T {
     tableAlias = alias
