@@ -37,12 +37,12 @@ class InsertCustomersInBatch(customers: List<Customer>) : Insert() {
     }
 }
 
-class SelectCustomer() : Query<Customer>() {
+class SelectCustomer : Query<Customer>() {
     val c = CustomerTable()
 
     init {
-        SELECT(c.columns)
         FROM(c)
+        SELECT(c)
         map { Customer(c) }
     }
 
@@ -65,6 +65,9 @@ class UpdateCustomer(customer: Customer) : Update() {
     }
 }
 
+fun updateCustomer(customer: Customer) = CustomerTable()
+        .update({ it.name TO customer.name }, { it.id EQ customer.id })
+
 class DeleteCustomer(id: Int) : Delete() {
     val c = CustomerTable()
 
@@ -72,3 +75,5 @@ class DeleteCustomer(id: Int) : Delete() {
         DELETE(c) { c.id EQ id }
     }
 }
+
+//Alternative: fun deleteCustomer(id: Int) = CustomerTable().delete { it.id EQ id }

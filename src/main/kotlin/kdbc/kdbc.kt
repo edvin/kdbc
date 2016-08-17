@@ -281,11 +281,13 @@ abstract class Expr(val parent: Expr?) {
     fun SELECT(columns: Iterable<ColumnOrTable>, op: (SelectExpr.() -> Unit)? = null) =
             add(SelectExpr(columns.flatMap { if (it is Table) it.columns else listOf(it as Column<*>) }, this), op)
 
-    fun <T : Table> UPDATE(table: T, op: SetExpr.() -> Unit): UpdateExpr {
+    fun <T : Table> UPDATE(table: T, op: (SetExpr.() -> Unit)? = null): UpdateExpr {
         val updateExpr = add(UpdateExpr(table, this))
         updateExpr.add(SetExpr(updateExpr), op)
         return updateExpr
     }
+
+    fun SET(op: SetExpr.() -> Unit) = add(SetExpr(this), op)
 
     fun <T : Table> INSERT(table: T, op: InsertExpr.() -> Unit)
             = add(InsertExpr(table, this), op)
@@ -456,11 +458,7 @@ class KDBC {
 }
 
 // Construct ad hoc query
-fun <T> query(op: Query<T>.() -> Unit) = object : Query<T>() {
-    init {
-        op(this)
-    }
-}
+fun <T> query(op: Query<T>.() -> Unit) = object : Query<T>(op) {}
 
 // Construct ad hoc query and return the first result
 fun <T> first(op: Query<T>.() -> Unit) = query(op).first()
@@ -473,9 +471,43 @@ fun <T> list(op: Query<T>.() -> Unit) = query(op).list()
 
 // Construct ad hoc query and execute it
 fun <T> execute(op: Query<T>.() -> Unit) = query(op).execute()
-fun <T> update(op: Query<T>.() -> Unit) = query(op).execute()
-fun <T> insert(op: Query<T>.() -> Unit) = query(op).execute()
-fun <T> delete(op: Query<T>.() -> Unit) = query(op).execute()
+
+// Construct ad hoc delete and execute it
+fun <T : Table> delete(table: T, op: Delete.(T) -> Unit) = object : Delete() {
+    init {
+        DELETE(table)
+        op(this, table)
+    }
+}.execute()
+
+// Execute a delete on a table instance
+@JvmName("deleteTable")
+inline fun <reified T : Table> T.delete(noinline op: Delete.(T) -> Unit) = delete(this, op)
+
+// Construct ad hoc update and execute it
+fun <T : Table> update(table: T, set: SetExpr.(T) -> Unit, op: WhereExpr.(T) -> Unit) = object : Update() {
+    init {
+        UPDATE(table)
+        SET { set(this, table) }
+        WHERE { op(this, table) }
+    }
+}.execute()
+
+@JvmName("updateTable")
+inline fun <reified T : Table> T.update(noinline set: SetExpr.(T) -> Unit, noinline op: WhereExpr.(T) -> Unit) = update(this, set, op)
+
+// Construct ad hoc insert and execute it
+fun <T : Table> insert(table: T, op: InsertExpr.(T) -> Unit) = object : Insert() {
+    init {
+        INSERT(table) {
+            op(this, table)
+        }
+    }
+}.execute()
+
+@JvmName("insertTable")
+inline fun <reified T : Table> T.insert(noinline op: InsertExpr.(T) -> Unit) = insert(this, op)
+
 
 // Augment a query and return the first result or null
 fun <Q : Query<T>, T> firstOrNull(query: Q, op: Q.() -> Unit): T? {
@@ -884,7 +916,7 @@ class CustomerTable : Table("customer") {
     val id by column { getInt(it) }
 }
 
-abstract class Table(val tableName: String): ColumnOrTable {
+abstract class Table(val tableName: String) : ColumnOrTable {
     var tableAlias: String? = null
     var rs: ResultSet? = null
     protected fun <T> column(ddl: String? = null, getter: ResultSet.(String) -> T) = ColumnDelegate(ddl, getter)
@@ -896,6 +928,7 @@ abstract class Table(val tableName: String): ColumnOrTable {
                 it.invoke(this) as Column<*>
             }
 
+    // Generate DDL for this table. All columns that have a DDL statement will be included.
     fun ddl(dropIfExists: Boolean): String {
         val s = StringBuilder()
         if (dropIfExists) s.append("DROP TABLE IF EXISTS $tableName;\n")
@@ -908,6 +941,16 @@ abstract class Table(val tableName: String): ColumnOrTable {
         }
         s.append(")")
         return s.toString()
+    }
+
+    // Execute create table statement. Creates a query to be able to borrow a connection from the data source factory.
+    fun create(dropIfExists: Boolean = false) {
+        object : Query<Void>() {
+            init {
+                add(StringExpr(ddl(dropIfExists), this))
+                execute()
+            }
+        }
     }
 }
 

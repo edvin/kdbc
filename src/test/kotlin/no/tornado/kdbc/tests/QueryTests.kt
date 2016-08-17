@@ -11,16 +11,13 @@ import java.sql.SQLException
 class QueryTests {
     companion object {
         init {
-            JdbcDataSource().apply {
-                setURL("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1")
-                KDBC.setDataSource(this)
-                with(connection) {
-                    createTable(CustomerTable::class)
-                    close()
-                }
-                val customers = listOf(Customer(name = "John"), Customer(name = "Jill"))
-                InsertCustomersInBatch(customers).execute()
-            }
+            val dataSource = JdbcDataSource()
+            dataSource.setURL("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1")
+            KDBC.setDataSource(dataSource)
+
+            CustomerTable().create()
+            val customers = listOf(Customer(name = "John"), Customer(name = "Jill"))
+            InsertCustomersInBatch(customers).execute()
         }
     }
 
