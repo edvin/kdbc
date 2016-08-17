@@ -473,16 +473,16 @@ fun <T> list(op: Query<T>.() -> Unit) = query(op).list()
 fun <T> execute(op: Query<T>.() -> Unit) = query(op).execute()
 
 // Construct ad hoc delete and execute it
-fun <T : Table> delete(table: T, op: Delete.(T) -> Unit) = object : Delete() {
+fun <T : Table> delete(table: T, where: WhereExpr.(T) -> Unit) = object : Delete() {
     init {
         DELETE(table)
-        op(this, table)
+        WHERE { where(this, table) }
     }
 }.execute()
 
 // Execute a delete on a table instance
 @JvmName("deleteTable")
-inline fun <reified T : Table> T.delete(noinline op: Delete.(T) -> Unit) = delete(this, op)
+inline fun <reified T : Table> T.delete(noinline where: WhereExpr.(T) -> Unit) = delete(this, where)
 
 // Construct ad hoc update and execute it
 fun <T : Table> update(table: T, set: SetExpr.(T) -> Unit, op: WhereExpr.(T) -> Unit) = object : Update() {

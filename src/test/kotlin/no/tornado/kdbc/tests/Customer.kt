@@ -76,4 +76,4 @@ class DeleteCustomer(id: Int) : Delete() {
     }
 }
 
-//Alternative: fun deleteCustomer(id: Int) = CustomerTable().delete { it.id EQ id }
+fun deleteCustomer(id: Int) = CustomerTable().delete { it.id EQ id }
