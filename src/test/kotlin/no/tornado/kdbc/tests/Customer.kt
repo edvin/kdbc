@@ -3,20 +3,20 @@ package no.tornado.kdbc.tests
 import kdbc.*
 
 data class Customer(var id: Int? = null, var name: String) {
-    constructor(t: CustomerTable) : this(t.id(), t.name())
+    constructor(t: CustomerTable) : this(t.ID(), t.NAME())
 }
 
 class CustomerTable : Table("customer") {
-    val id by column("integer not null primary key auto_increment") { getInt(it) }
-    val name by column("text") { getString(it) }
+    val ID by column("integer not null primary key auto_increment", INTEGER)
+    val NAME by column("text", TEXT_NOT_NULL)
 }
 
 class InsertCustomer(customer: Customer) : Insert() {
-    val c = CustomerTable()
+    val C = CustomerTable()
 
     init {
-        INSERT(c) {
-            c.name TO customer.name
+        INSERT(C) {
+            C.NAME `=` customer.name
         }
         generatedKeys {
             customer.id = getInt(1)
@@ -25,55 +25,57 @@ class InsertCustomer(customer: Customer) : Insert() {
 }
 
 class InsertCustomersInBatch(customers: List<Customer>) : Insert() {
-    val c = CustomerTable()
+    val C = CustomerTable()
 
     init {
         // H2 Does not support generated keys in batch, so we can't retrieve them with `generatedKeys { }` here
         BATCH(customers) { customer ->
-            INSERT(c) {
-                c.name TO customer.name
+            INSERT(C) {
+                C.NAME `=` customer.name
             }
         }
     }
 }
 
 class SelectCustomer : Query<Customer>() {
-    val c = CustomerTable()
+    val C = CustomerTable()
 
     init {
-        FROM(c)
-        SELECT(c)
-        map { Customer(c) }
+        SELECT(C)
+        FROM(C)
+        TO { Customer(C) }
     }
 
-    fun byId(id: Int): Customer? = let {
-        WHERE { c.id EQ id }
+    fun byId(id: Int?): Customer? = let {
+        WHERE { C.ID `=` id }
         firstOrNull()
     }
 }
 
 class UpdateCustomer(customer: Customer) : Update() {
-    val c = CustomerTable()
+    val C = CustomerTable()
 
     init {
-        UPDATE(c) {
-            c.name TO customer.name
+        UPDATE(C) {
+            C.NAME `=` customer.name
         }
         WHERE {
-            c.id EQ customer.id
+            C.ID EQ customer.id
         }
     }
 }
 
 fun updateCustomer(customer: Customer) = CustomerTable()
-        .update({ it.name TO customer.name }, { it.id EQ customer.id })
+        .UPDATE({ it.NAME `=` customer.name }, { it.ID `=` customer.id })
 
 class DeleteCustomer(id: Int) : Delete() {
-    val c = CustomerTable()
+    val C = CustomerTable()
 
     init {
-        DELETE(c) { c.id EQ id }
+        DELETE(C) {
+            C.ID `=` id
+        }
     }
 }
 
-fun deleteCustomer(id: Int) = CustomerTable().delete { it.id EQ id }
+fun deleteCustomer(id: Int) = CustomerTable().DELETE { it.ID `=` id }

@@ -1,7 +1,6 @@
 package no.tornado.kdbc.tests
 
 import kdbc.KDBC
-import kdbc.createTable
 import kdbc.transaction
 import org.h2.jdbcx.JdbcDataSource
 import org.junit.Assert.*

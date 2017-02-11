@@ -332,7 +332,7 @@ abstract class Expr(val parent: Expr?) {
         return this
     }
 
-    infix fun Any.TO(param: Any?) = createComparison(this, param, "=")
+    infix fun Any.`=`(param: Any?) = createComparison(this, param, "=")
     infix fun Any.EQ(param: Any?) = createComparison(this, param, "=")
     infix fun Any.LIKE(param: Any?) = createComparison(this, param, "LIKE")
     infix fun Any.GT(param: Any?) = createComparison(this, param, ">")
@@ -371,15 +371,15 @@ class Param(val value: Any?) {
 }
 
 abstract class Insert : Query<Any>() {
-    final override fun map(rs: ResultSet) = throw UnsupportedOperationException()
+    final override fun TO(rs: ResultSet) = throw UnsupportedOperationException()
 }
 
 abstract class Update : Query<Any>() {
-    final override fun map(rs: ResultSet) = throw UnsupportedOperationException()
+    final override fun TO(rs: ResultSet) = throw UnsupportedOperationException()
 }
 
 abstract class Delete : Query<Any>() {
-    final override fun map(rs: ResultSet) = throw UnsupportedOperationException()
+    final override fun TO(rs: ResultSet) = throw UnsupportedOperationException()
 }
 
 fun <Q : Query<*>> Q.connection(connection: Connection): Q {
@@ -473,7 +473,7 @@ fun <T> list(op: Query<T>.() -> Unit) = query(op).list()
 fun <T> execute(op: Query<T>.() -> Unit) = query(op).execute()
 
 // Construct ad hoc delete and execute it
-fun <T : Table> delete(table: T, where: WhereExpr.(T) -> Unit) = object : Delete() {
+fun <T : Table> DELETE(table: T, where: WhereExpr.(T) -> Unit) = object : Delete() {
     init {
         DELETE(table)
         WHERE { where(this, table) }
@@ -482,10 +482,10 @@ fun <T : Table> delete(table: T, where: WhereExpr.(T) -> Unit) = object : Delete
 
 // Execute a delete on a table instance
 @JvmName("deleteTable")
-inline fun <reified T : Table> T.delete(noinline where: WhereExpr.(T) -> Unit) = delete(this, where)
+inline fun <reified T : Table> T.DELETE(noinline where: WhereExpr.(T) -> Unit) = DELETE(this, where)
 
 // Construct ad hoc update and execute it
-fun <T : Table> update(table: T, set: SetExpr.(T) -> Unit, op: WhereExpr.(T) -> Unit) = object : Update() {
+fun <T : Table> UPDATE(table: T, set: SetExpr.(T) -> Unit, op: WhereExpr.(T) -> Unit) = object : Update() {
     init {
         UPDATE(table)
         SET { set(this, table) }
@@ -494,10 +494,15 @@ fun <T : Table> update(table: T, set: SetExpr.(T) -> Unit, op: WhereExpr.(T) -> 
 }.execute()
 
 @JvmName("updateTable")
-inline fun <reified T : Table> T.update(noinline set: SetExpr.(T) -> Unit, noinline op: WhereExpr.(T) -> Unit) = update(this, set, op)
+inline fun <reified T : Table> T.UPDATE(noinline set: SetExpr.(T) -> Unit, noinline op: WhereExpr.(T) -> Unit) = UPDATE(this, set, op)
+
+inline fun <reified T : Table, R> T.UPDATE(noinline op: Update.() -> R): R {
+    val update = object : Update() {}
+    return op(update)
+}
 
 // Construct ad hoc insert and execute it
-fun <T : Table> insert(table: T, op: InsertExpr.(T) -> Unit) = object : Insert() {
+fun <T : Table> INSERT(table: T, op: InsertExpr.(T) -> Unit) = object : Insert() {
     init {
         INSERT(table) {
             op(this, table)
@@ -506,7 +511,7 @@ fun <T : Table> insert(table: T, op: InsertExpr.(T) -> Unit) = object : Insert()
 }.execute()
 
 @JvmName("insertTable")
-inline fun <reified T : Table> T.insert(noinline op: InsertExpr.(T) -> Unit) = insert(this, op)
+inline fun <reified T : Table> T.INSERT(noinline op: InsertExpr.(T) -> Unit) = INSERT(this, op)
 
 
 // Augment a query and return the first result or null
@@ -548,9 +553,9 @@ abstract class Query<T>(op: (Query<T>.() -> Unit)? = null) : Expr(null) {
      * data from the supplied ResultSet you should extract the data from
      * the Table instances you used to construct the query.
      */
-    open fun map(rs: ResultSet): T = mapper(rs)
+    open fun TO(rs: ResultSet): T = mapper(rs)
 
-    fun map(mapper: (ResultSet) -> T) {
+    fun TO(mapper: (ResultSet) -> T) {
         this.mapper = mapper
     }
 
@@ -586,7 +591,7 @@ abstract class Query<T>(op: (Query<T>.() -> Unit)? = null) : Expr(null) {
         try {
             return if (rs.next()) {
                 tables.forEach { it.rs = rs }
-                map(rs)
+                TO(rs)
             } else null
         } finally {
             checkClose()
@@ -598,7 +603,7 @@ abstract class Query<T>(op: (Query<T>.() -> Unit)? = null) : Expr(null) {
         val list = mutableListOf<T>()
         while (rs.next()) {
             tables.forEach { it.rs = rs }
-            list.add(map(rs))
+            list.add(TO(rs))
         }
         try {
             return list
@@ -612,7 +617,7 @@ abstract class Query<T>(op: (Query<T>.() -> Unit)? = null) : Expr(null) {
         return object : Iterator<T> {
             override fun next(): T {
                 tables.forEach { it.rs = rs }
-                return map(rs)
+                return TO(rs)
             }
 
             override fun hasNext(): Boolean {
@@ -913,13 +918,21 @@ class ColumnDelegate<T>(val ddl: String? = null, val getter: ResultSet.(String) 
 }
 
 class CustomerTable : Table("customer") {
-    val id by column { getInt(it) }
+    val id by column("", INTEGER_NOT_NULL)
 }
 
+
 abstract class Table(val tableName: String) : ColumnOrTable {
+    val INTEGER: ResultSet.(String) -> Int? = { getInt(it) }
+    val INTEGER_NOT_NULL: ResultSet.(String) -> Int = { getInt(it) }
+
+    val TEXT: ResultSet.(String) -> String? = { getString(it) }
+    val TEXT_NOT_NULL: ResultSet.(String) -> String = { getString(it) }
+
     var tableAlias: String? = null
     var rs: ResultSet? = null
-    protected fun <T> column(ddl: String? = null, getter: ResultSet.(String) -> T) = ColumnDelegate(ddl, getter)
+    protected fun <T> column(getter: ResultSet.(String) -> T) = ColumnDelegate(null, getter)
+    protected fun <T> column(ddl: String, getter: ResultSet.(String) -> T) = ColumnDelegate(ddl, getter)
     override fun toString() = if (tableAlias.isNullOrBlank() || tableAlias == tableName) tableName else "$tableName $tableAlias"
     val columns: List<Column<*>> get() = javaClass.declaredMethods
             .filter { Column::class.java.isAssignableFrom(it.returnType) }
