@@ -208,7 +208,7 @@ abstract class Expr(val parent: Expr?) {
         val NoSpaceWhenLastChar = arrayOf(' ', '(', ')', '\n')
     }
 
-    val query: Query<*> get() = if (this is Query<*>) this else if (parent is Query<*>) parent else parent!!.query
+    val query: Query<*> get() = if (this is Query<*>) this else parent as? Query<*> ?: parent!!.query
 
     val expressions = mutableListOf<Expr>()
 
@@ -276,10 +276,10 @@ abstract class Expr(val parent: Expr?) {
             add(BatchExpr(entities, large, op, this))
 
     fun SELECT(vararg columns: ColumnOrTable, op: (SelectExpr.() -> Unit)? = null) =
-            add(SelectExpr(columns.flatMap { if (it is Table) it.columns else listOf(it as Column<*>) }, this), op)
+            add(SelectExpr(columns.flatMap { (it as? Table)?.columns ?: listOf(it as Column<*>) }, this), op)
 
     fun SELECT(columns: Iterable<ColumnOrTable>, op: (SelectExpr.() -> Unit)? = null) =
-            add(SelectExpr(columns.flatMap { if (it is Table) it.columns else listOf(it as Column<*>) }, this), op)
+            add(SelectExpr(columns.flatMap { (it as? Table)?.columns ?: listOf(it as Column<*>) }, this), op)
 
     fun <T : Table> UPDATE(table: T, op: (SetExpr.() -> Unit)? = null): UpdateExpr {
         val updateExpr = add(UpdateExpr(table, this))
@@ -542,7 +542,7 @@ abstract class Query<T>(op: (Query<T>.() -> Unit)? = null) : Expr(null) {
     var connection: Connection? = null
     var autoclose: Boolean = true
     private var vetoclose: Boolean = false
-    private var mapper: (ResultSet) -> T = { throw SQLException("You must provide a mapper to this query by calling map { resultSet -> T } or override `map(ResultSet): T`.\n\n${describe()}") }
+    private var mapper: (ResultSet) -> T = { throw SQLException("You must provide a mapper to this query by calling TO { resultSet -> T } or override `TO(ResultSet): T`.\n\n${describe()}") }
 
     init {
         op?.invoke(this)

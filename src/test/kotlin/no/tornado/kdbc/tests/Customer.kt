@@ -60,7 +60,7 @@ class UpdateCustomer(customer: Customer) : Update() {
             C.NAME `=` customer.name
         }
         WHERE {
-            C.ID EQ customer.id
+            C.ID `=` customer.id
         }
     }
 }
