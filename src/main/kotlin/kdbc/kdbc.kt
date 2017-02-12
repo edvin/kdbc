@@ -495,9 +495,9 @@ fun <T : Table> UPDATE(table: T, set: SetExpr.(T) -> Unit, op: WhereExpr.(T) -> 
 @JvmName("updateTable")
 inline fun <reified T : Table> T.UPDATE(noinline set: SetExpr.(T) -> Unit, noinline op: WhereExpr.(T) -> Unit) = UPDATE(this, set, op)
 
-inline fun <reified T : Table, R> T.UPDATE(noinline op: Update.() -> R): R {
+inline fun <reified T : Table, R> T.UPDATE(noinline op: Update.(T) -> R): R {
     val update = object : Update() {}
-    return op(update)
+    return op(update, this)
 }
 
 // Construct ad hoc insert and execute it
@@ -650,7 +650,7 @@ abstract class Query<T>(op: (Query<T>.() -> Unit)? = null) : Expr(null) {
      * participate in a transaction.
      */
     private fun checkClose() {
-        if (!vetoclose && !ConnectionFactory.Companion.isTransactionActive && autoclose) logErrors("Closing connection") { connection!!.close() }
+        if (!vetoclose && !ConnectionFactory.isTransactionActive && autoclose) logErrors("Closing connection") { connection!!.close() }
     }
 
     val resultSet: ResultSet get() = stmt.resultSet!!
