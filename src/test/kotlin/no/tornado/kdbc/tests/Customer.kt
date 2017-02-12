@@ -47,7 +47,9 @@ class SelectCustomer : Query<Customer>() {
     }
 
     fun byId(id: Int?): Customer? = let {
-        WHERE { C.ID `=` id }
+        WHERE {
+            C.ID `=` id
+        }
         firstOrNull()
     }
 }

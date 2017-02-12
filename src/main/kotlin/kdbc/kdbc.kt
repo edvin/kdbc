@@ -348,7 +348,6 @@ abstract class Expr(val parent: Expr?) {
 
 }
 
-
 class TextTransform(val type: Type, val value: Any?) {
     enum class Type { UPPER, LOWER }
 
