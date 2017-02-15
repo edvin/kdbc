@@ -46,11 +46,11 @@ class SelectCustomer : Query<Customer>() {
         TO { Customer(C) }
     }
 
-    fun byId(id: Int?): Customer? = let {
+    fun byId(id: Int): Customer? {
         WHERE {
             C.ID `=` id
         }
-        firstOrNull()
+        return firstOrNull()
     }
 }
 
