@@ -67,9 +67,6 @@ class UpdateCustomer(customer: Customer) : Update() {
     }
 }
 
-fun updateCustomer(customer: Customer) = CustomerTable()
-        .UPDATE({ it.NAME `=` customer.name }, { it.ID `=` customer.id })
-
 class DeleteCustomer(id: Int) : Delete() {
     val C = CustomerTable()
 
@@ -79,5 +76,3 @@ class DeleteCustomer(id: Int) : Delete() {
         }
     }
 }
-
-fun deleteCustomer(id: Int) = CustomerTable().DELETE { it.ID `=` id }

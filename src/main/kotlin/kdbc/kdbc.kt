@@ -369,15 +369,15 @@ class Param(val value: Any?) {
 
 }
 
-abstract class Insert : Query<Any>() {
+abstract class Insert(connection: Connection? = null, autoclose: Boolean = true) : Query<Any>(connection, autoclose) {
     final override fun TO(rs: ResultSet) = throw UnsupportedOperationException()
 }
 
-abstract class Update : Query<Any>() {
+abstract class Update(connection: Connection? = null, autoclose: Boolean = true) : Query<Any>(connection, autoclose) {
     final override fun TO(rs: ResultSet) = throw UnsupportedOperationException()
 }
 
-abstract class Delete : Query<Any>() {
+abstract class Delete(connection: Connection? = null, autoclose: Boolean = true) : Query<Any>(connection, autoclose) {
     final override fun TO(rs: ResultSet) = throw UnsupportedOperationException()
 }
 
@@ -456,90 +456,10 @@ class KDBC {
     }
 }
 
-// Construct ad hoc query
-fun <T> query(op: Query<T>.() -> Unit) = object : Query<T>(op) {}
-
-// Construct ad hoc query and return the first result
-fun <T> first(op: Query<T>.() -> Unit) = query(op).first()
-
-// Construct ad hoc query and return the first result or null
-fun <T> firstOrNull(op: Query<T>.() -> Unit) = query(op).firstOrNull()
-
-// Construct ad hoc query and return the result as a list
-fun <T> list(op: Query<T>.() -> Unit) = query(op).list()
-
-// Construct ad hoc query and execute it
-fun <T> execute(op: Query<T>.() -> Unit) = query(op).execute()
-
-// Construct ad hoc delete and execute it
-fun <T : Table> DELETE(table: T, where: WhereExpr.(T) -> Unit) = object : Delete() {
-    init {
-        DELETE(table)
-        WHERE { where(this, table) }
-    }
-}.execute()
-
-// Execute a delete on a table instance
-@JvmName("deleteTable")
-inline fun <reified T : Table> T.DELETE(noinline where: WhereExpr.(T) -> Unit) = DELETE(this, where)
-
-// Construct ad hoc update and execute it
-fun <T : Table> UPDATE(table: T, set: SetExpr.(T) -> Unit, op: WhereExpr.(T) -> Unit) = object : Update() {
-    init {
-        UPDATE(table)
-        SET { set(this, table) }
-        WHERE { op(this, table) }
-    }
-}.execute()
-
-@JvmName("updateTable")
-inline fun <reified T : Table> T.UPDATE(noinline set: SetExpr.(T) -> Unit, noinline op: WhereExpr.(T) -> Unit) = UPDATE(this, set, op)
-
-inline fun <reified T : Table, R> T.UPDATE(noinline op: Update.(T) -> R): R {
-    val update = object : Update() {}
-    return op(update, this)
-}
-
-// Construct ad hoc insert and execute it
-fun <T : Table> INSERT(table: T, op: InsertExpr.(T) -> Unit) = object : Insert() {
-    init {
-        INSERT(table) {
-            op(this, table)
-        }
-    }
-}.execute()
-
-@JvmName("insertTable")
-inline fun <reified T : Table> T.INSERT(noinline op: InsertExpr.(T) -> Unit) = INSERT(this, op)
-
-
-// Augment a query and return the first result or null
-fun <Q : Query<T>, T> firstOrNull(query: Q, op: Q.() -> Unit): T? {
-    op(query)
-    return query.firstOrNull()
-}
-
-// Augment a query and return the first result
-fun <Q : Query<T>, T> first(query: Q, op: Q.() -> Unit): T = firstOrNull(query, op)!!
-
-// Augment a query and return a list
-fun <Q : Query<T>, T> list(query: Q, op: Q.() -> Unit): List<T> {
-    op(query)
-    return query.list()
-}
-
-// Augment a query and return a sequence. Important: This must be exhausted to close the connection!
-fun <Q : Query<T>, T> sequence(query: Q, op: Q.() -> Unit): Sequence<T> {
-    op(query)
-    return query.sequence()
-}
-
-abstract class Query<T>(op: (Query<T>.() -> Unit)? = null) : Expr(null) {
+abstract class Query<T>(var connection: Connection? = null, var autoclose: Boolean = true, op: (Query<T>.() -> Unit)? = null) : Expr(null) {
     private var withGeneratedKeys: (ResultSet.(Int) -> Unit)? = null
     val tables = mutableListOf<Table>()
     lateinit var stmt: PreparedStatement
-    var connection: Connection? = null
-    var autoclose: Boolean = true
     private var vetoclose: Boolean = false
     private var mapper: (ResultSet) -> T = { throw SQLException("You must provide a mapper to this query by calling TO { resultSet -> T } or override `TO(ResultSet): T`.\n\n${describe()}") }
 
@@ -565,7 +485,7 @@ abstract class Query<T>(op: (Query<T>.() -> Unit)? = null) : Expr(null) {
     /**
      * Add table and configure alias if more than one table. Also configure alias for the first table if you add a second
      */
-    fun addTable(table: Table) {
+    internal fun addTable(table: Table) {
         if (!tables.contains(table)) {
             tables.add(table)
             if (tables.size > 1) table.configureAlias()
@@ -728,41 +648,38 @@ abstract class Query<T>(op: (Query<T>.() -> Unit)? = null) : Expr(null) {
     }
 
     fun applyParameters() {
-        val paramCounter = AtomicInteger(0)
-        params.forEach { param ->
-            if (param.value !is Column<*>) {
-                // TODO: Clean up type handler code when the TypeHandler interface has stabilized
-                val handler: TypeHandler<Any?>? = param.handler ?: if (param.value != null) typeHandlers[param.value.javaClass.kotlin] else null
-                applyParameter(handler, param, paramCounter.incrementAndGet(), param.value)
-            }
+        params.filterNot { it.value is Column<*> }.forEachIndexed { pos, param ->
+            applyParameter(param, pos + 1)
         }
     }
 
-    private fun applyParameter(handler: TypeHandler<Any?>?, param: Param, pos: Int, value: Any?) {
+    private fun applyParameter(param: Param, pos: Int) {
+        val handler: TypeHandler<Any?>? = param.handler ?: if (param.value != null) typeHandlers[param.value.javaClass.kotlin] else null
+
         if (handler != null) {
-            handler.setParam(stmt, pos, value)
+            handler.setParam(stmt, pos, param.value)
         } else if (param.type != null) {
             if (param.value == null)
                 stmt.setNull(pos, param.type!!)
             else
-                stmt.setObject(pos, value, param.type!!)
+                stmt.setObject(pos, param.value, param.type!!)
         } else {
-            when (value) {
-                is UUID -> stmt.setObject(pos, value)
-                is Int -> stmt.setInt(pos, value)
-                is String -> stmt.setString(pos, value)
-                is Double -> stmt.setDouble(pos, value)
-                is Boolean -> stmt.setBoolean(pos, value)
-                is Float -> stmt.setFloat(pos, value)
-                is Long -> stmt.setLong(pos, value)
-                is LocalTime -> stmt.setTime(pos, java.sql.Time.valueOf(value))
-                is LocalDate -> stmt.setDate(pos, java.sql.Date.valueOf(value))
-                is LocalDateTime -> stmt.setTimestamp(pos, java.sql.Timestamp.valueOf(value))
-                is BigDecimal -> stmt.setBigDecimal(pos, value)
-                is InputStream -> stmt.setBinaryStream(pos, value)
-                is Enum<*> -> stmt.setObject(pos, value)
+            when (param.value) {
+                is UUID -> stmt.setObject(pos, param.value)
+                is Int -> stmt.setInt(pos, param.value)
+                is String -> stmt.setString(pos, param.value)
+                is Double -> stmt.setDouble(pos, param.value)
+                is Boolean -> stmt.setBoolean(pos, param.value)
+                is Float -> stmt.setFloat(pos, param.value)
+                is Long -> stmt.setLong(pos, param.value)
+                is LocalTime -> stmt.setTime(pos, java.sql.Time.valueOf(param.value))
+                is LocalDate -> stmt.setDate(pos, java.sql.Date.valueOf(param.value))
+                is LocalDateTime -> stmt.setTimestamp(pos, java.sql.Timestamp.valueOf(param.value))
+                is BigDecimal -> stmt.setBigDecimal(pos, param.value)
+                is InputStream -> stmt.setBinaryStream(pos, param.value)
+                is Enum<*> -> stmt.setObject(pos, param.value)
                 null -> throw SQLException("Parameter #$pos is null, you must provide a handler or sql type.\n${describe()}")
-                else -> throw SQLException("Don't know how to handle parameters of type ${value.javaClass}.\n${describe()}")
+                else -> throw SQLException("Don't know how to handle parameters of type ${param.value.javaClass}.\n${describe()}")
             }
         }
     }
@@ -917,7 +834,7 @@ class ColumnDelegate<T>(val ddl: String? = null, val getter: ResultSet.(String) 
 }
 
 class CustomerTable : Table("customer") {
-    val id by column("", INTEGER_NOT_NULL)
+    val id by column(INTEGER_NOT_NULL)
 }
 
 
