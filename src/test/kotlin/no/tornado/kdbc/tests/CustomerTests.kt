@@ -46,7 +46,7 @@ class SelectCustomer : Query<Customer>() {
     init {
         SELECT(C)
         FROM(C)
-        TO { Customer(C) }
+        rowItem { Customer(C) }
     }
 
     fun byId(id: Int): Customer? {

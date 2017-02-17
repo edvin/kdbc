@@ -369,17 +369,9 @@ class Param(val value: Any?) {
 
 }
 
-abstract class Insert(connection: Connection? = null, autoclose: Boolean = true) : Query<Any>(connection, autoclose) {
-    final override fun TO(rs: ResultSet) = throw UnsupportedOperationException()
-}
-
-abstract class Update(connection: Connection? = null, autoclose: Boolean = true) : Query<Any>(connection, autoclose) {
-    final override fun TO(rs: ResultSet) = throw UnsupportedOperationException()
-}
-
-abstract class Delete(connection: Connection? = null, autoclose: Boolean = true) : Query<Any>(connection, autoclose) {
-    final override fun TO(rs: ResultSet) = throw UnsupportedOperationException()
-}
+abstract class Insert(connection: Connection? = null, autoclose: Boolean = true) : Query<Any>(connection, autoclose)
+abstract class Update(connection: Connection? = null, autoclose: Boolean = true) : Query<Any>(connection, autoclose)
+abstract class Delete(connection: Connection? = null, autoclose: Boolean = true) : Query<Any>(connection, autoclose)
 
 fun <Q : Query<*>> Q.connection(connection: Connection): Q {
     this.connection = connection
@@ -461,7 +453,7 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
     val tables = mutableListOf<Table>()
     lateinit var stmt: PreparedStatement
     private var vetoclose: Boolean = false
-    private var mapper: (ResultSet) -> T = { throw SQLException("You must provide a mapper to this query by calling TO { resultSet -> T } or override `TO(ResultSet): T`.\n\n${describe()}") }
+    private var rowItemMapper: () -> T = { throw SQLException("You must provide a mapper to this query by calling rowItem { () -> T } or override `rowItem(): T`.\n\n${describe()}") }
 
     init {
         op?.invoke(this)
@@ -472,10 +464,10 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
      * data from the supplied ResultSet you should extract the data from
      * the Table instances you used to construct the query.
      */
-    open fun TO(rs: ResultSet): T = mapper(rs)
+    open fun rowItem(): T = rowItemMapper()
 
-    fun TO(mapper: (ResultSet) -> T) {
-        this.mapper = mapper
+    fun rowItem(mapper: () -> T) {
+        this.rowItemMapper = mapper
     }
 
     fun generatedKeys(op: ResultSet.(Int) -> Unit) {
@@ -510,7 +502,7 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
         try {
             return if (rs.next()) {
                 tables.forEach { it.rs = rs }
-                TO(rs)
+                rowItem()
             } else null
         } finally {
             checkClose()
@@ -522,7 +514,7 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
         val list = mutableListOf<T>()
         while (rs.next()) {
             tables.forEach { it.rs = rs }
-            list.add(TO(rs))
+            list.add(rowItem())
         }
         try {
             return list
@@ -536,7 +528,7 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
         return object : Iterator<T> {
             override fun next(): T {
                 tables.forEach { it.rs = rs }
-                return TO(rs)
+                return rowItem()
             }
 
             override fun hasNext(): Boolean {
