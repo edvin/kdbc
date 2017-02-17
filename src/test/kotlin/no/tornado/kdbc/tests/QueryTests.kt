@@ -2,6 +2,8 @@ package no.tornado.kdbc.tests
 
 import kdbc.KDBC
 import kdbc.transaction
+import no.tornado.kdbc.tests.models.Customer
+import no.tornado.kdbc.tests.tables.CUSTOMER
 import org.h2.jdbcx.JdbcDataSource
 import org.junit.Assert.*
 import org.junit.Test
@@ -14,7 +16,7 @@ class QueryTests {
             dataSource.setURL("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1")
             KDBC.setDataSource(dataSource)
 
-            T_CUSTOMER().create()
+            CUSTOMER().create()
             val customers = listOf(Customer(name = "John"), Customer(name = "Jill"))
             InsertCustomersInBatch(customers).execute()
         }

@@ -2,20 +2,12 @@ package no.tornado.kdbc.tests
 
 import kdbc.Insert
 import kdbc.Query
-import kdbc.Table
 import kdbc.Update
-
-data class Customer(var id: Int? = null, var name: String) {
-    constructor(t: T_CUSTOMER) : this(t.ID(), t.NAME())
-}
-
-class T_CUSTOMER : Table("customer") {
-    val ID by column<Int>("integer not null primary key auto_increment")
-    val NAME by column<String>("text")
-}
+import no.tornado.kdbc.tests.models.Customer
+import no.tornado.kdbc.tests.tables.CUSTOMER
 
 class InsertCustomer(customer: Customer) : Insert() {
-    val C = T_CUSTOMER()
+    val C = CUSTOMER()
 
     init {
         INSERT(C) {
@@ -28,7 +20,7 @@ class InsertCustomer(customer: Customer) : Insert() {
 }
 
 class InsertCustomersInBatch(customers: List<Customer>) : Insert() {
-    val C = T_CUSTOMER()
+    val C = CUSTOMER()
 
     init {
         // H2 Does not support generated keys in batch, so we can't retrieve them with `generatedKeys { }` here
@@ -41,7 +33,7 @@ class InsertCustomersInBatch(customers: List<Customer>) : Insert() {
 }
 
 class SelectCustomer : Query<Customer>() {
-    val C = T_CUSTOMER()
+    val C = CUSTOMER()
 
     init {
         SELECT(C)
@@ -59,7 +51,7 @@ class SelectCustomer : Query<Customer>() {
 }
 
 class UpdateCustomer(customer: Customer) : Update() {
-    val C = T_CUSTOMER()
+    val C = CUSTOMER()
 
     init {
         UPDATE(C) {
@@ -72,7 +64,7 @@ class UpdateCustomer(customer: Customer) : Update() {
 }
 
 class DeleteCustomer(id: Int) : Query<Customer>() {
-    val C = T_CUSTOMER()
+    val C = CUSTOMER()
 
     init {
         DELETE(C) {
