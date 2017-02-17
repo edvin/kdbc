@@ -826,7 +826,7 @@ class ColumnDelegate<T>(val ddl: String? = null, val getter: ResultSet.(String) 
 }
 
 class CustomerTable : Table("customer") {
-    val id by column(INTEGER_NOT_NULL)
+    val id by column<Int>()
 }
 
 
@@ -862,8 +862,26 @@ abstract class Table(val tableName: String) : ColumnOrTable {
 
     var tableAlias: String? = null
     var rs: ResultSet? = null
-    protected fun <T> column(getter: ResultSet.(String) -> T) = ColumnDelegate(null, getter)
-    protected fun <T> column(ddl: String, getter: ResultSet.(String) -> T) = ColumnDelegate(ddl, getter)
+
+    inline protected fun <reified T : Any> column(ddl: String? = null, noinline getter: (ResultSet.(String) -> T)? = null) = ColumnDelegate(ddl, getter ?: DefaultGetter(T::class))
+
+    fun <T : Any> DefaultGetter(kClass: KClass<T>): ResultSet.(String) -> T = {
+        when (kClass) {
+            Int::class -> getInt(it) as T
+            String::class -> getString(it) as T
+            Double::class -> getDouble(it) as T
+            Float::class -> getFloat(it) as T
+            BigDecimal::class -> getBigDecimal(it) as T
+            Date::class -> getDate(it) as T
+            Long::class -> getLong(it) as T
+            LocalDate::class -> getDate(it)?.toLocalDate() as T
+            LocalDateTime::class -> getTimestamp(it)?.toLocalDateTime() as T
+            else -> throw IllegalArgumentException("Default Column Getter cannot handle $kClass - supply a custom getter for this column")
+        }
+    }
+
+    //inline protected fun <reified T> column(ddl: String, getter: ResultSet.(String) -> T = DefaultGetter(T::class)) = ColumnDelegate(ddl, getter)
+
     override fun toString() = if (tableAlias.isNullOrBlank() || tableAlias == tableName) tableName else "$tableName $tableAlias"
     val columns: List<Column<*>> get() = javaClass.declaredMethods
             .filter { Column::class.java.isAssignableFrom(it.returnType) }

@@ -10,8 +10,8 @@ data class Customer(var id: Int? = null, var name: String) {
 }
 
 class T_CUSTOMER : Table("customer") {
-    val ID by column("integer not null primary key auto_increment", INTEGER)
-    val NAME by column("text", STRING_NOT_NULL)
+    val ID by column<Int>("integer not null primary key auto_increment")
+    val NAME by column<String>("text")
 }
 
 class InsertCustomer(customer: Customer) : Insert() {
@@ -46,8 +46,9 @@ class SelectCustomer : Query<Customer>() {
     init {
         SELECT(C)
         FROM(C)
-        rowItem { Customer(C) }
     }
+
+    override fun rowItem() = Customer(C)
 
     fun byId(id: Int): Customer? {
         WHERE {
