@@ -45,7 +45,6 @@ class SelectCustomer : Query<Customer>() {
     fun byId(id: Int) = firstOrNull {
         WHERE {
             C.ID `=` id
-            execute()
         }
     }
 
