@@ -831,35 +831,6 @@ class CustomerTable : Table("customer") {
 
 
 abstract class Table(val tableName: String) : ColumnOrTable {
-    companion object {
-        val INTEGER: ResultSet.(String) -> Int? = { getInt(it) }
-        val INTEGER_NOT_NULL: ResultSet.(String) -> Int = { getInt(it) }
-
-        val LONG: ResultSet.(String) -> Long? = { getLong(it) }
-        val LONG_NOT_NULL: ResultSet.(String) -> Long = { getLong(it) }
-
-        val FLOAT: ResultSet.(String) -> Float? = { getFloat(it) }
-        val FLOAT_NOT_NULL: ResultSet.(String) -> Float = { getFloat(it) }
-
-        val DOUBLE: ResultSet.(String) -> Double? = { getDouble(it) }
-        val DOUBLE_NOT_NULL: ResultSet.(String) -> Double = { getDouble(it) }
-
-        val BIGDECIMAL: ResultSet.(String) -> BigDecimal? = { getBigDecimal(it) }
-        val BIGDECIMAL_NOT_NULL: ResultSet.(String) -> BigDecimal = { getBigDecimal(it) }
-
-        val DATE: ResultSet.(String) -> Date? = { getDate(it) }
-        val DATE_NOT_NULL: ResultSet.(String) -> Date = { getDate(it) }
-
-        val LOCALDATE: ResultSet.(String) -> LocalDate? = { getDate(it).toLocalDate() }
-        val LOCALDATE_NOT_NULL: ResultSet.(String) -> LocalDate = { getDate(it).toLocalDate() }
-
-        val LOCALDATETIME: ResultSet.(String) -> LocalDateTime? = { getTimestamp(it).toLocalDateTime() }
-        val LOCALDATETIME_NOT_NULL: ResultSet.(String) -> LocalDateTime = { getTimestamp(it).toLocalDateTime() }
-
-        val STRING: ResultSet.(String) -> String? = { getString(it) }
-        val STRING_NOT_NULL: ResultSet.(String) -> String = { getString(it) }
-    }
-
     var tableAlias: String? = null
     var rs: ResultSet? = null
 
@@ -879,8 +850,6 @@ abstract class Table(val tableName: String) : ColumnOrTable {
             else -> throw IllegalArgumentException("Default Column Getter cannot handle $kClass - supply a custom getter for this column")
         }
     }
-
-    //inline protected fun <reified T> column(ddl: String, getter: ResultSet.(String) -> T = DefaultGetter(T::class)) = ColumnDelegate(ddl, getter)
 
     override fun toString() = if (tableAlias.isNullOrBlank() || tableAlias == tableName) tableName else "$tableName $tableAlias"
     val columns: List<Column<*>> get() = javaClass.declaredMethods
