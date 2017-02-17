@@ -496,8 +496,12 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
 
     override fun render(s: StringBuilder) = renderChildren(s)
 
-    fun first() = firstOrNull()!!
-    fun firstOrNull(): T? {
+    fun first(op: (Query<T>.() -> Unit)? = null): T {
+        op?.invoke(this)
+        return firstOrNull()!!
+    }
+    fun firstOrNull(op: (Query<T>.() -> Unit)? = null): T? {
+        op?.invoke(this)
         val rs = requireResultSet()
         try {
             return if (rs.next()) {
@@ -509,7 +513,8 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
         }
     }
 
-    fun list(): List<T> {
+    fun list(op: (Query<T>.() -> Unit)? = null): List<T> {
+        op?.invoke(this)
         val rs = requireResultSet()
         val list = mutableListOf<T>()
         while (rs.next()) {
@@ -523,7 +528,8 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
         }
     }
 
-    fun sequence(): Sequence<T> {
+    fun sequence(op: (Query<T>.() -> Unit)? = null): Sequence<T> {
+        op?.invoke(this)
         val rs = requireResultSet()
         return object : Iterator<T> {
             override fun next(): T {
@@ -572,7 +578,8 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
     /**
      * Gather parameters, render the SQL, prepare the statement and execute the query.
      */
-    fun execute(): ExecutionResult<T> {
+    fun execute(op: (Query<T>.() -> Unit)? = null): ExecutionResult<T> {
+        op?.invoke(this)
         if (connection == null) {
             connection(connectionFactory.borrow(this))
         } else {

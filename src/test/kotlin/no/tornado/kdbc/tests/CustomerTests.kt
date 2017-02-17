@@ -42,12 +42,13 @@ class SelectCustomer : Query<Customer>() {
 
     override fun rowItem() = Customer(C)
 
-    fun byId(id: Int): Customer? {
+    fun byId(id: Int) = firstOrNull {
         WHERE {
             C.ID `=` id
+            execute()
         }
-        return firstOrNull()
     }
+
 }
 
 class UpdateCustomer(customer: Customer) : Update() {
