@@ -35,7 +35,7 @@ query needs an alias, defined by instantiating one or more `Table` instances.
 
 You override the `rowItem` function to tell the query how to turn a result set
 into your domain object. You don't need to work with the `ResultSet` directly,
-the table aliases can be used to extract the sql columns in a type safe manner.
+the table aliases can be used to extract the sql column values in a type safe manner.
 
 ```kotlin
 class SelectCustomer : Query<Customer> {
