@@ -126,6 +126,14 @@ class SelectCustomer : Query<Customer> {
 }
 ```
 
+If you use `State` and/or `Customer` from other queries as well, consider
+creating a secondary constructor that accepts the table object. That way the `rowItem` function
+would look like:
+
+```kotlin
+override fun rowItem() = Customer(C, State(S))
+```
+
 This example showcases some of the corner stones of KDBC:
 
 *You are 100% in control of what is fetched from your database, and you
