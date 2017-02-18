@@ -90,7 +90,7 @@ data class State(
 )
 ```
 
-We modify our `Customer` to include a `State`:
+We modify our Customer to include a state:
 
 ```kotlin
 data class Customer(
@@ -100,6 +100,14 @@ data class Customer(
     var city: String,
     var state: State
 )
+
+class CUSTOMER : Table {
+    val ID by column<Int>()
+    val NAME by column<String>()
+    val ZIP by column<String>()
+    val CITY by column<String>()
+    val STATE by column<UUID>()
+}
 ```
 
 Let's modify our `SelectCustomer` query so it joins `State` and populates the complete `Customer`
@@ -165,6 +173,27 @@ of the `ResultSet` class, based on the type of the `column`. For example, a `col
 do `getInt(it)` and a `column<String>()` will do `getString(it)`. There are defaults for all known
 SQL data types, but you can easily call any function on the `ResultSet` object if you have a custom
 requirement.
+
+## Dynamic queries
+
+Some times you want to pass multiple parameters to a search function and some of them might be nullable.
+
+Consider the following function that can search for customers with a certain name, and optionally of atleast a given age.
+
+```kotlin
+fun search(name: String, minAge: Int?) = list {
+    WHERE {
+        UPPER(C.NAME) LIKE UPPER("%$name%")
+        if (minAge != null) {
+            AND {
+                C.AGE GTE minAge
+            }
+        }
+    }
+}
+
+```
+> Yes, `name` is parameterized in the underlying prepared statement. SQL injection is not welcome here! :)
 
 ### DDL
 
