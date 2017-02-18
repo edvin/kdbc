@@ -15,7 +15,6 @@ class QueryTests {
             val dataSource = JdbcDataSource()
             dataSource.setURL("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1")
             KDBC.setDataSource(dataSource)
-
             CUSTOMER().create()
             val customers = listOf(Customer(name = "John"), Customer(name = "Jill"))
             InsertCustomersInBatch(customers).execute()
