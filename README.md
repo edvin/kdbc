@@ -3,7 +3,7 @@
 KDBC provides type safe SQL queries for Kotlin. Features:
 
 - 100% control of executed SQL
-- Column selections and joins can be easily reused for multiple queries
+- Column selections and joins can be easily reused in multiple queries
 - Explicit, but convenient O/R mapping
 - Optional DDL generation
 
