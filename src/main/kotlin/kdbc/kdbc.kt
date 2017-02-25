@@ -833,14 +833,15 @@ class ColumnDelegate<T>(val ddl: String? = null, val getter: ResultSet.(String) 
     }
 }
 
-class CustomerTable : Table("customer") {
+class CustomerTable : Table() {
     val id by column<Int>()
 }
 
 
-abstract class Table(val tableName: String) : ColumnOrTable {
+abstract class Table(private val name: String? = null) : ColumnOrTable {
     var tableAlias: String? = null
     var rs: ResultSet? = null
+    val tableName: String get() = name ?: javaClass.simpleName.toLowerCase()
 
     inline protected fun <reified T : Any> column(ddl: String? = null, noinline getter: (ResultSet.(String) -> T)? = null) = ColumnDelegate(ddl, getter ?: DefaultGetter(T::class))
 

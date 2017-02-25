@@ -11,7 +11,7 @@ class InsertCustomer(customer: Customer) : Insert() {
 
     init {
         INSERT(C) {
-            C.NAME `=` customer.name
+            C.name `=` customer.name
         }
         generatedKeys {
             customer.id = getInt(1)
@@ -26,7 +26,7 @@ class InsertCustomersInBatch(customers: List<Customer>) : Insert() {
         // H2 Does not support generated keys in batch, so we can't retrieve them with `generatedKeys { }` here
         BATCH(customers) { customer ->
             INSERT(C) {
-                C.NAME `=` customer.name
+                C.name `=` customer.name
             }
         }
     }
@@ -44,7 +44,7 @@ class SelectCustomer : Query<Customer>() {
 
     fun byId(id: Int) = firstOrNull {
         WHERE {
-            C.ID `=` id
+            C.id `=` id
         }
     }
 
@@ -55,10 +55,10 @@ class UpdateCustomer(customer: Customer) : Update() {
 
     init {
         UPDATE(C) {
-            C.NAME `=` customer.name
+            C.name `=` customer.name
         }
         WHERE {
-            C.ID `=` customer.id
+            C.id `=` customer.id
         }
     }
 }
@@ -68,7 +68,7 @@ class DeleteCustomer(id: Int) : Query<Customer>() {
 
     init {
         DELETE(C) {
-            C.ID `=` id
+            C.id `=` id
         }
     }
 }
