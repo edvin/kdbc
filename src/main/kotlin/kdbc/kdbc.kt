@@ -38,7 +38,7 @@ class JoinExpr(val table: Table, parent: Expr) : Expr(parent) {
         query.addTable(table)
     }
 
-    infix fun ON(op: (JoinOnExpr) -> Unit): JoinExpr {
+    infix fun on(op: (JoinOnExpr) -> Unit): JoinExpr {
         add(StringExpr("ON", this))
         add(JoinOnExpr(this), op)
         return this
@@ -248,7 +248,7 @@ abstract class Expr(val parent: Expr?) {
     fun append(sql: String) = add(StringExpr(sql, this))
     operator fun String.unaryPlus() = append(this)
 
-    infix fun Expr.JOIN(table: Table): JoinExpr {
+    infix fun Expr.join(table: Table): JoinExpr {
         query.addTable(table)
         return add(JoinExpr(table, this))
     }
@@ -258,62 +258,56 @@ abstract class Expr(val parent: Expr?) {
     val Expr.OUTER: JoinDiscriminatorExpr get() = add(JoinDiscriminatorExpr("OUTER", this))
     val Expr.INNER: JoinDiscriminatorExpr get() = add(JoinDiscriminatorExpr("INNER", this))
 
-    infix fun JoinExpr.OUTER(joinExpr: JoinExpr): JoinExpr {
+    infix fun JoinExpr.outer(joinExpr: JoinExpr): JoinExpr {
         joinExpr.expressions.add(0, JoinDiscriminatorExpr("OUTER", joinExpr))
         return joinExpr
     }
 
-    infix fun JoinExpr.INNER(joinExpr: JoinExpr): JoinExpr {
+    infix fun JoinExpr.inner(joinExpr: JoinExpr): JoinExpr {
         joinExpr.expressions.add(0, JoinDiscriminatorExpr("INNER", joinExpr))
         return joinExpr
     }
 
-    fun GROUPBY(sql: String) = add(GroupByExpr(sql, this))
+    fun groupby(sql: String) = add(GroupByExpr(sql, this))
 
-    fun HAVING(op: HavingExpr.() -> Unit) = add(HavingExpr(this), op)
+    fun having(op: HavingExpr.() -> Unit) = add(HavingExpr(this), op)
 
-    fun <T> BATCH(entities: Iterable<T>, large: Boolean = false, op: (BatchExpr<T>).(T) -> Unit) =
+    fun <T> batch(entities: Iterable<T>, large: Boolean = false, op: (BatchExpr<T>).(T) -> Unit) =
             add(BatchExpr(entities, large, op, this))
 
-    fun SELECT(vararg columns: ColumnOrTable, op: (SelectExpr.() -> Unit)? = null) =
+    fun select(vararg columns: ColumnOrTable, op: (SelectExpr.() -> Unit)? = null) =
             add(SelectExpr(columns.flatMap { (it as? Table)?.columns ?: listOf(it as Column<*>) }, this), op)
 
-    fun SELECT(columns: Iterable<ColumnOrTable>, op: (SelectExpr.() -> Unit)? = null) =
+    fun select(columns: Iterable<ColumnOrTable>, op: (SelectExpr.() -> Unit)? = null) =
             add(SelectExpr(columns.flatMap { (it as? Table)?.columns ?: listOf(it as Column<*>) }, this), op)
 
-    fun <T : Table> UPDATE(table: T, op: (SetExpr.() -> Unit)? = null): UpdateExpr {
+    fun <T : Table> update(table: T, op: (SetExpr.() -> Unit)? = null): UpdateExpr {
         val updateExpr = add(UpdateExpr(table, this))
         updateExpr.add(SetExpr(updateExpr), op)
         return updateExpr
     }
 
-    fun SET(op: SetExpr.() -> Unit) = add(SetExpr(this), op)
+    fun set(op: SetExpr.() -> Unit) = add(SetExpr(this), op)
 
-    fun <T : Table> INSERT(table: T, op: InsertExpr.() -> Unit)
+    fun <T : Table> insert(table: T, op: InsertExpr.() -> Unit)
             = add(InsertExpr(table, this), op)
 
-    fun DELETE(table: Table, op: (DeleteExpr.() -> Unit)? = null) =
+    fun delete(table: Table, op: (DeleteExpr.() -> Unit)? = null) =
             add(DeleteExpr(table, this), op)
 
-    fun FROM(vararg tables: Table, op: (FromExpr.() -> Unit)? = null) =
+    fun from(vararg tables: Table, op: (FromExpr.() -> Unit)? = null) =
             add(FromExpr(tables.toList(), this), op)
 
-    fun WHERE(op: WhereExpr.() -> Unit) =
+    fun where(op: WhereExpr.() -> Unit) =
             add(WhereExpr(this), op)
 
-    infix fun Column<*>.IN(op: InExpr.() -> Unit) {
+    infix fun Column<*>.`in`(op: InExpr.() -> Unit) {
         add(InExpr(this, parent!!), op)
     }
 
-    fun AND(op: AndExpr.() -> Unit) = add(AndExpr(this), op)
+    fun and(op: AndExpr.() -> Unit) = add(AndExpr(this), op)
 
-    fun OR(op: OrExpr.() -> Unit) = add(OrExpr(this), op)
-
-    infix fun Expr.assuming(predicate: Boolean) {
-        if (!predicate) parent?.expressions?.remove(this)
-    }
-
-    infix fun Expr.assumingNotNull(o: Any?) = assuming(o != null)
+    fun or(op: OrExpr.() -> Unit) = add(OrExpr(this), op)
 
     infix fun ComparisonExpr.type(type: Int): ComparisonExpr {
         param.type = type
@@ -333,15 +327,15 @@ abstract class Expr(val parent: Expr?) {
     }
 
     infix fun Any.`=`(param: Any?) = createComparison(this, param, "=")
-    infix fun Any.EQ(param: Any?) = createComparison(this, param, "=")
-    infix fun Any.LIKE(param: Any?) = createComparison(this, param, "LIKE")
-    infix fun Any.GT(param: Any?) = createComparison(this, param, ">")
-    infix fun Any.GTE(param: Any?) = createComparison(this, param, ">=")
-    infix fun Any.LT(param: Any?) = createComparison(this, param, "<")
-    infix fun Any.LTE(param: Any?) = createComparison(this, param, "<=")
+    infix fun Any.eq(param: Any?) = createComparison(this, param, "=")
+    infix fun Any.like(param: Any?) = createComparison(this, param, "LIKE")
+    infix fun Any.gt(param: Any?) = createComparison(this, param, ">")
+    infix fun Any.gte(param: Any?) = createComparison(this, param, ">=")
+    infix fun Any.lt(param: Any?) = createComparison(this, param, "<")
+    infix fun Any.lte(param: Any?) = createComparison(this, param, "<=")
 
-    fun UPPER(value: Any?) = TextTransform(TextTransform.Type.UPPER, value)
-    fun LOWER(value: Any?) = TextTransform(TextTransform.Type.LOWER, value)
+    fun upper(value: Any?) = TextTransform(TextTransform.Type.UPPER, value)
+    fun lower(value: Any?) = TextTransform(TextTransform.Type.LOWER, value)
 
     private fun createComparison(receiver: Any?, param: Any?, sign: String)
             = add(ComparisonExpr(receiver, sign, param, this@Expr))

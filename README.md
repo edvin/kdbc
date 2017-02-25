@@ -11,10 +11,10 @@ To query or update a table you need a `Table` object that represents the databas
 
 ```kotlin
 class CUSTOMER : Table {
-    val ID by column<Int>()
-    val NAME by column<String>()
-    val ZIP by column<String>()
-    val CITY by column<String>()
+    val id by column<Int>()
+    val name by column<String>()
+    val zip by column<String>()
+    val city by column<String>()
 }
 ```
 
@@ -39,14 +39,14 @@ the table aliases can be used to extract the sql column values in a type safe ma
 
 ```kotlin
 class SelectCustomer : Query<Customer> {
-    val C = CUSTOMER()
+    val c = CUSTOMER()
 
     init {
-        SELECT(C.ID, C.NAME, C.ZIP, C.CITY)
-        FROM(C)
+        select(c.id, c.name, c.zip, c.city)
+        from(c)
     }
 
-    override fun rowItem() = Customer(C.ID(), C.NAME(), C.ZIP(), C.CITY())
+    override fun rowItem() = Customer(c.id(), c.name(), c.zip(), c.city())
 }
 ```
 
@@ -62,8 +62,8 @@ The query code we wrote in the init block can be reused for multiple queries. Le
 
 ```kotlin
 fun byId(id: Int) = first {
-    WHERE {
-        C.ID `=` id
+    where {
+        c.id `=` id
     }
 }
 ```
@@ -78,9 +78,9 @@ Let's do a join! We'll introduce a `STATE` table and `State` domain object:
 
 ```kotlin
 class STATE : Table() {
-    val ID by column<UUID>()
-    val CODE by column<String>()
-    val NAME by column<String>()
+    val id by column<UUID>()
+    val code by column<String>()
+    val name by column<String>()
 }
 
 data class State(
@@ -102,11 +102,11 @@ data class Customer(
 )
 
 class CUSTOMER : Table {
-    val ID by column<Int>()
-    val NAME by column<String>()
-    val ZIP by column<String>()
-    val CITY by column<String>()
-    val STATE by column<UUID>()
+    val id by column<Int>()
+    val name by column<String>()
+    val zip by column<String>()
+    val city by column<String>()
+    val state by column<UUID>()
 }
 ```
 
@@ -116,20 +116,20 @@ mention the alias once instead of mentioning all the columns.
 
 ```kotlin
 class SelectCustomer : Query<Customer> {
-    val C = CUSTOMER()
-    val S = STATE()
+    val c = CUSTOMER()
+    val s = STATE()
 
     init {
-        SELECT(C, S)
-        FROM(C)
-        JOIN (S) ON {
-            S.ID `=` C.STATE
+        select(c, s)
+        from(c)
+        join (s) on {
+            s.id `=` c.state
         }
     }
 
     override fun rowItem() {
-        val state = State(S.ID(), S.CODE(), S.NAME())
-        return Customer(C.ID(), C.NAME(), C.ZIP(), C.CITY(), state)
+        val state = State(s.id(), s.code(), s.name())
+        return Customer(c.id(), c.name(), c.zip(), c.city(), state)
     }
 }
 ```
@@ -139,7 +139,7 @@ creating a secondary constructor that accepts the table object. That way the `ro
 would look like:
 
 ```kotlin
-override fun rowItem() = Customer(C, State(S))
+override fun rowItem() = Customer(c, State(s))
 ```
 
 This example showcases some of the corner stones of KDBC:
@@ -153,7 +153,7 @@ Let's revisit the first column we made, the `ID` property of our `CUSTOMER` tabl
 
 ```kotlin
 class CUSTOMER : Table {
-    val ID by column<Int>()
+    val id by column<Int>()
 }
 ```
 
@@ -164,7 +164,7 @@ the column value for a given `ResultSet` object. The `getter` function operates 
 the column name. Therefore, the `ID` column could also have been constructed like this:
 
 ```kotlin
-val ID by column { getString(it) }
+val id by column { getString(it) }
 ```
 
 `getString()` operates on a `ResultSet` and `it` represents the column name.
@@ -182,11 +182,11 @@ Consider the following function that can search for customers with a certain nam
 
 ```kotlin
 fun search(name: String, minAge: Int?) = list {
-    WHERE {
-        UPPER(C.NAME) LIKE UPPER("%$name%")
+    where {
+        upper(c.name) like upper("%$name%")
         if (minAge != null) {
-            AND {
-                C.AGE GTE minAge
+            and {
+                c.age gte minAge
             }
         }
     }
@@ -204,8 +204,8 @@ The following example is taken from the test suite of KDBC:
 
 ```kotlin
 class CUSTOMER : Table("customer") {
-    val ID by column<Int>("integer not null primary key auto_increment")
-    val NAME by column<String>("text")
+    val id by column<Int>("integer not null primary key auto_increment")
+    val name by column<String>("text")
 }
 ```
 > Customer definition with DDL

@@ -10,7 +10,7 @@ class InsertCustomer(customer: Customer) : Insert() {
     val C = CUSTOMER()
 
     init {
-        INSERT(C) {
+        insert(C) {
             C.name `=` customer.name
         }
         generatedKeys {
@@ -24,8 +24,8 @@ class InsertCustomersInBatch(customers: List<Customer>) : Insert() {
 
     init {
         // H2 Does not support generated keys in batch, so we can't retrieve them with `generatedKeys { }` here
-        BATCH(customers) { customer ->
-            INSERT(C) {
+        batch(customers) { customer ->
+            insert(C) {
                 C.name `=` customer.name
             }
         }
@@ -33,18 +33,18 @@ class InsertCustomersInBatch(customers: List<Customer>) : Insert() {
 }
 
 class SelectCustomer : Query<Customer>() {
-    val C = CUSTOMER()
+    val c = CUSTOMER()
 
     init {
-        SELECT(C)
-        FROM(C)
+        select(c)
+        from(c)
     }
 
-    override fun rowItem() = Customer(C)
+    override fun rowItem() = Customer(c)
 
     fun byId(id: Int) = firstOrNull {
-        WHERE {
-            C.id `=` id
+        where {
+            c.id `=` id
         }
     }
 
@@ -54,10 +54,10 @@ class UpdateCustomer(customer: Customer) : Update() {
     val C = CUSTOMER()
 
     init {
-        UPDATE(C) {
+        update(C) {
             C.name `=` customer.name
         }
-        WHERE {
+        where {
             C.id `=` customer.id
         }
     }
@@ -67,7 +67,7 @@ class DeleteCustomer(id: Int) : Query<Customer>() {
     val C = CUSTOMER()
 
     init {
-        DELETE(C) {
+        delete(C) {
             C.id `=` id
         }
     }
