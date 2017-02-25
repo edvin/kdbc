@@ -7,11 +7,11 @@ import no.tornado.kdbc.tests.models.Customer
 import no.tornado.kdbc.tests.tables.CUSTOMER
 
 class InsertCustomer(customer: Customer) : Insert() {
-    val C = CUSTOMER()
+    val c = CUSTOMER()
 
     init {
-        insert(C) {
-            C.name `=` customer.name
+        insert(c) {
+            c.name `=` customer.name
         }
         generatedKeys {
             customer.id = getInt(1)
@@ -20,13 +20,13 @@ class InsertCustomer(customer: Customer) : Insert() {
 }
 
 class InsertCustomersInBatch(customers: List<Customer>) : Insert() {
-    val C = CUSTOMER()
+    val c = CUSTOMER()
 
     init {
         // H2 Does not support generated keys in batch, so we can't retrieve them with `generatedKeys { }` here
         batch(customers) { customer ->
-            insert(C) {
-                C.name `=` customer.name
+            insert(c) {
+                c.name `=` customer.name
             }
         }
     }
@@ -51,24 +51,24 @@ class SelectCustomer : Query<Customer>() {
 }
 
 class UpdateCustomer(customer: Customer) : Update() {
-    val C = CUSTOMER()
+    val c = CUSTOMER()
 
     init {
-        update(C) {
-            C.name `=` customer.name
+        update(c) {
+            c.name `=` customer.name
         }
         where {
-            C.id `=` customer.id
+            c.id `=` customer.id
         }
     }
 }
 
 class DeleteCustomer(id: Int) : Query<Customer>() {
-    val C = CUSTOMER()
+    val c = CUSTOMER()
 
     init {
-        delete(C) {
-            C.id `=` id
+        delete(c) {
+            c.id `=` id
         }
     }
 }

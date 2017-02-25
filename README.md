@@ -74,6 +74,38 @@ We use the table alias `c` to construct the SQL `WHERE c.id = :id` in a type saf
 val customer = SelectCustomer().byId(42)
 ```
 
+### Insert and Update
+
+These query classes normally takes one or more input parameters, and can extend `Insert`, `Update` or `Delete` instead of `Query`. There really isn't
+much of a difference, expect that the three first doesn't require a type parameter, like `Query` does.
+
+The following `InsertCustomer` query takes a `customer` as a parameter, sets up a customer table alias and sets the name column to the
+name property of the input `Customer` object.
+
+```kotlin
+class InsertCustomer(customer: Customer) : Insert() {
+    val c = CUSTOMER()
+
+    init {
+        insert(c) {
+            c.name `=` customer.name
+        }
+        generatedKeys {
+            customer.id = getInt(1)
+        }
+    }
+}
+```
+
+The insert returns a generated key for the `id` column. This is the first and only generated key, and we assign it to the `id` property of the input `Customer` object inside the `generatedKeys` block.
+This block is consulted after the insert is executed:
+
+```kotlin
+InsertCustomer(customer).execute()
+```
+
+## Joins
+
 Let's do a join! We'll introduce a `STATE` table and `State` domain object:
 
 ```kotlin
