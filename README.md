@@ -52,7 +52,7 @@ class SelectCustomer : Query<Customer> {
 
 Notice how we call `alias.columnName()` to extract the value for the current column for the current row.
 
-To execute the query you instantiate the query class and call one of the execute actions (`first()`, `firstOrNull()`, `list()`)
+To execute the query you instantiate the query class and call one of the execute actions `first()`, `firstOrNull()`, `list()`.
 
 ```kotlin
 val allCustomers = SelectCustomer().list()
@@ -68,7 +68,7 @@ fun byId(id: Int) = first {
 }
 ```
 
-We use the table alias (`C`) to construct the SQL `WHERE c.id = :id` in a type safe manner. We can now get a specific customer:
+We use the table alias `c` to construct the SQL `WHERE c.id = :id` in a type safe manner. We can now get a specific customer:
 
 ```kotlin
 val customer = SelectCustomer().byId(42)
