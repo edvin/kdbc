@@ -10,7 +10,7 @@ KDBC provides type safe SQL queries for Kotlin. Features:
 To query or update a table you need a `Table` object that represents the database table.
 
 ```kotlin
-class CUSTOMER : Table {
+class CUSTOMER : Table() {
     val id by column<Int>()
     val name by column<String>()
     val zip by column<String>()
@@ -101,7 +101,7 @@ data class Customer(
     var state: State
 )
 
-class CUSTOMER : Table {
+class CUSTOMER : Table() {
     val id by column<Int>()
     val name by column<String>()
     val zip by column<String>()
@@ -152,7 +152,7 @@ construct your domain objects explicitly.*
 Let's revisit the first column we made, the `ID` property of our `CUSTOMER` table object:
 
 ```kotlin
-class CUSTOMER : Table {
+class CUSTOMER : Table() {
     val id by column<Int>()
 }
 ```
@@ -203,7 +203,7 @@ generate DDL, which can be automatically executed to create your database table.
 The following example is taken from the test suite of KDBC:
 
 ```kotlin
-class CUSTOMER : Table("customer") {
+class CUSTOMER : Table() {
     val id by column<Int>("integer not null primary key auto_increment")
     val name by column<String>("text")
 }
