@@ -195,7 +195,7 @@ fun search(name: String, minAge: Int?) = list {
 ```
 > Yes, `name` is parameterized in the underlying prepared statement. SQL injection is not welcome here! :)
 
-### DDL
+## DDL
 
 The `column()` delegate also takes an optional `ddl` parameter. This is a string that can be used to
 generate DDL, which can be automatically executed to create your database table.
@@ -221,3 +221,28 @@ CUSTOMER().create()
 
 A `DataSource` is generated and configured as the default data source via `KDBC.setDataSource()`. Then
 we call `CUSTOMER().create()`, which generates the DDL and executes it to construct our table.
+
+## Transactions
+
+If the current connection has `autoCommit = true`, each query will be committed upon completion. This is the default for a manually created
+`java.sql.Connection`. A connection pool may change this behavior. For example, a JavaEE application will control transactions according to
+the JavaEE life cycle.
+
+KDBC has means to manually control the transaction context as well. To run multiple queries in the same transactions, wrap them in a `transaction` block:
+
+```kotlin
+transaction {
+    CreateCustomer(customer).execute()
+    CreateOrder(order).execute()
+}
+```
+
+To create a new connection that will participate in the same transaction, nest another `transaction` block inside the existing one.
+
+The `transaction` block takes an optional `transactionType` parameter.
+
+This is by default set to `TransactionType.REQUIRED` which indicates that the transaction can participate in an already active transaction or create it's own if no transaction is active.
+
+Changing to TransactionType.REQUIRES_NEW will temporarily suspend any active transactions and resume them after the code inside the `transaction` block completes.
+
+If no connection is specified for the queries inside the block, the connection retrieved for the first query executed inside the transaction block will be used for all subsequent queries.

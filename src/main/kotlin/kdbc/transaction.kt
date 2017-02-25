@@ -102,7 +102,7 @@ internal class TransactionContext(val type: TransactionType) {
  * By default, the TransactionType.REQUIRED attribute indicates that this transaction
  * can participate in an already active transaction or create it's own.
  *
- * Changing to TransactionType.REQUIRES_NEW will temporarily suspend any action transactions,
+ * Changing to TransactionType.REQUIRES_NEW will temporarily suspend any active transactions,
  * and resume them after this block completes.
  *
  * If no connection is specified, the connection retrieved for the first query executed inside the transaction block will be used.
