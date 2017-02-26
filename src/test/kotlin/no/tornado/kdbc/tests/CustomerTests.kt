@@ -40,7 +40,7 @@ class SelectCustomer : Query<Customer>() {
         from(c)
     }
 
-    override fun rowItem() = Customer(c)
+    override fun get() = Customer(c)
 
     fun byId(id: Int) = firstOrNull {
         where {

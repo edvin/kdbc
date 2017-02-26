@@ -33,7 +33,7 @@ data class Customer(
 A Query is encapsulated in a class. Every table you mention in the
 query needs an alias, defined by instantiating one or more `Table` instances.
 
-You override the `rowItem` function to tell the query how to turn a result set
+You override the `get` function to tell the query how to turn a result set
 into your domain object. You don't need to work with the `ResultSet` directly,
 the table aliases can be used to extract the sql column values in a type safe manner.
 
@@ -46,7 +46,7 @@ class SelectCustomer : Query<Customer> {
         from(c)
     }
 
-    override fun rowItem() = Customer(c.id(), c.name(), c.zip(), c.city())
+    override fun get() = Customer(c.id(), c.name(), c.zip(), c.city())
 }
 ```
 
@@ -159,7 +159,7 @@ class SelectCustomer : Query<Customer> {
         }
     }
 
-    override fun rowItem() {
+    override fun get() {
         val state = State(s.id(), s.code(), s.name())
         return Customer(c.id(), c.name(), c.zip(), c.city(), state)
     }
@@ -167,11 +167,10 @@ class SelectCustomer : Query<Customer> {
 ```
 
 If you use `State` and/or `Customer` from other queries as well, consider
-creating a secondary constructor that accepts the table object. That way the `rowItem` function
-would look like:
+creating a secondary constructor that accepts the table object. That way the `get` mapper function would look like:
 
 ```kotlin
-override fun rowItem() = Customer(c, State(s))
+override fun get() = Customer(c, State(s))
 ```
 
 This example showcases some of the corner stones of KDBC:

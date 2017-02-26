@@ -17,7 +17,7 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
     val tables = mutableListOf<Table>()
     lateinit var stmt: PreparedStatement
     private var vetoclose: Boolean = false
-    private var rowItemMapper: () -> T = { throw SQLException("You must provide a mapper to this query by calling rowItem { () -> T } or override `rowItem(): T`.\n\n${describe()}") }
+    private var mapper: () -> T = { throw SQLException("You must provide a mapper to this query by calling mapper { () -> T } or override `get(): T`.\n\n${describe()}") }
 
     init {
         op?.invoke(this)
@@ -28,10 +28,10 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
      * data from the supplied ResultSet you should extract the data from
      * the Table instances you used to construct the query.
      */
-    open fun rowItem(): T = rowItemMapper()
+    open fun get(): T = get()
 
-    fun rowItem(mapper: () -> T) {
-        this.rowItemMapper = mapper
+    fun mapper(mapper: () -> T) {
+        this.mapper = mapper
     }
 
     fun generatedKeys(op: ResultSet.(Int) -> Unit) {
@@ -71,7 +71,7 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
         try {
             return if (rs.next()) {
                 tables.forEach { it.rs = rs }
-                rowItem()
+                get()
             } else null
         } finally {
             checkClose()
@@ -84,7 +84,7 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
         val list = mutableListOf<T>()
         while (rs.next()) {
             tables.forEach { it.rs = rs }
-            list.add(rowItem())
+            list.add(get())
         }
         try {
             return list
@@ -99,7 +99,7 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
         return object : Iterator<T> {
             override fun next(): T {
                 tables.forEach { it.rs = rs }
-                return rowItem()
+                return get()
             }
 
             override fun hasNext(): Boolean {
