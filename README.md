@@ -278,6 +278,28 @@ Changing to TransactionType.REQUIRES_NEW will temporarily suspend any active tra
 
 If no connection is specified for the queries inside the block, the connection retrieved for the first query executed inside the transaction block will be used for all subsequent queries.
 
+## Batch statements
+
+If your underlying database supports it, you can do batch updates or inserts just by wrapping the code in `batch` and give it a list of objects to iterate over as it's single argument:
+
+```kotlin
+class InsertCustomersInBatch(customers: List<Customer>) : Insert() {
+    val c = CUSTOMER()
+
+    init {
+        batch(customers) { customer ->
+            insert(c) {
+                c.name `=` customer.name
+            }
+            // If database supports generated keys, retrieve them here
+            generatedKeys {
+                customer.id = getInt(1)
+            }
+        }
+    }
+}
+```
+
 ## Arbitrary SQL
 
 If you come across an unsupported native SQL command or for some other reason need to enter arbitrary SQL, you can use the `append` call or simply `+`:

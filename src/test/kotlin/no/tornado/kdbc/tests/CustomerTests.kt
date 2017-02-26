@@ -28,6 +28,9 @@ class InsertCustomersInBatch(customers: List<Customer>) : Insert() {
             insert(c) {
                 c.name `=` customer.name
             }
+            generatedKeys {
+                customer.id = getInt(1)
+            }
         }
     }
 }
