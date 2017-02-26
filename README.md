@@ -277,3 +277,11 @@ This is by default set to `TransactionType.REQUIRED` which indicates that the tr
 Changing to TransactionType.REQUIRES_NEW will temporarily suspend any active transactions and resume them after the code inside the `transaction` block completes.
 
 If no connection is specified for the queries inside the block, the connection retrieved for the first query executed inside the transaction block will be used for all subsequent queries.
+
+## Arbitrary SQL
+
+If you come across an unsupported native SQL command or for some other reason need to enter arbitrary SQL, you can use the `append` call or simply `+`:
+
+```kotlin
++ "arbitrary sql here"
+```
