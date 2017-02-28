@@ -244,7 +244,7 @@ class InsertExpr(val table: Table, parent: Expr) : Expr(parent) {
 
 class UpdateExpr(val table: Table, parent: Expr) : Expr(parent) {
     override fun render(s: StringBuilder) {
-        s.append("UPDATE ").append(table.tableName).append(" ")
+        s.append("UPDATE ").append(table).append(" ")
         super.render(s)
     }
 }

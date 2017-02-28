@@ -1,6 +1,9 @@
 package no.tornado.kdbc.tests
 
-import kdbc.*
+import kdbc.Insert
+import kdbc.Query
+import kdbc.Update
+import kdbc.alias
 import no.tornado.kdbc.tests.models.Customer
 import no.tornado.kdbc.tests.tables.CUSTOMER
 
@@ -58,6 +61,7 @@ class UpdateCustomer(customer: Customer) : Update() {
         where {
             c.id `=` customer.id
         }
+        println(render())
     }
 }
 
