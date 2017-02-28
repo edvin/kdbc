@@ -280,7 +280,7 @@ If no connection is specified for the queries inside the block, the connection r
 
 ## Batch statements
 
-If your underlying database supports it, you can do batch updates or inserts just by wrapping the code in `batch` and give it a list of objects to iterate over as it's single argument:
+If your database supports it, you can do batch updates or inserts just by wrapping the code in `batch` and give it a list of objects to iterate over as it's single argument:
 
 ```kotlin
 class InsertCustomersInBatch(customers: List<Customer>) : Insert() {

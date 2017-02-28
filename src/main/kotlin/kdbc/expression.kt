@@ -270,7 +270,7 @@ class HavingExpr(parent: Expr) : Expr(parent) {
 
 class SetExpr(parent: Expr) : Expr(parent) {
     override fun render(s: StringBuilder) {
-        s.append("SET ")
+        s.append("\nSET ")
         expressions.forEachIndexed { i, expr ->
             prefixWithSpace(s)
             expr.render(s)
