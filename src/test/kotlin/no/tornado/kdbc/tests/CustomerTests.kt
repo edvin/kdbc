@@ -1,8 +1,6 @@
 package no.tornado.kdbc.tests
 
-import kdbc.Insert
-import kdbc.Query
-import kdbc.Update
+import kdbc.*
 import no.tornado.kdbc.tests.models.Customer
 import no.tornado.kdbc.tests.tables.CUSTOMER
 
@@ -51,7 +49,7 @@ class SelectCustomer : Query<Customer>() {
 }
 
 class UpdateCustomer(customer: Customer) : Update() {
-    val c = CUSTOMER()
+    val c = CUSTOMER() alias "mycustomer"
 
     init {
         update(c) {

@@ -63,7 +63,7 @@ abstract class Table(private val name: String? = null) : ColumnOrTable {
     }
 }
 
-infix fun <T : Table> T.`as`(alias: String): T {
+infix fun <T : Table> T.alias(alias: String): T {
     tableAlias = alias
     return this
 }
