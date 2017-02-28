@@ -52,7 +52,7 @@ class SelectCustomer : Query<Customer>() {
 }
 
 class UpdateCustomer(customer: Customer) : Update() {
-    val c = CUSTOMER() alias "mycustomer"
+    val c = CUSTOMER()
 
     init {
         update(c) {
@@ -61,7 +61,6 @@ class UpdateCustomer(customer: Customer) : Update() {
         where {
             c.id `=` customer.id
         }
-        println(render())
     }
 }
 
