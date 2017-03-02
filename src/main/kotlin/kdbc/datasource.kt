@@ -15,6 +15,9 @@ fun DataSource.execute(sql: String, autoclose: Boolean = true): Boolean {
     }
 }
 
+//fun DataSource.select(sql: String, vararg v: Any):
+
+
 class ConnectionFactory {
     companion object {
         internal val transactionContext = ThreadLocal<TransactionContext>()
