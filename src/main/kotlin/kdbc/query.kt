@@ -93,7 +93,9 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
         }
     }
 
-    fun sequence(op: (Query<T>.() -> Unit)? = null): Sequence<T> {
+    fun sequence(op: (Query<T>.() -> Unit)? = null) = iterator(op).asSequence()
+
+    fun iterator(op: (Query<T>.() -> Unit)? = null): Iterator<T> {
         op?.invoke(this)
         val rs = requireResultSet()
         return object : Iterator<T> {
@@ -110,9 +112,8 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
                 }
                 return hasNext
             }
-        }.asSequence()
+        }
     }
-
     private fun requireResultSet(): ResultSet {
         vetoclose = true
         try {
