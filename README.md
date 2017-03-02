@@ -351,10 +351,24 @@ class InsertCustomersInBatch(customers: List<Customer>) : Insert() {
 }
 ```
 
-## Arbitrary SQL
+## Textual SQL
 
 If you come across an unsupported native SQL command or for some other reason need to enter arbitrary SQL, you can use the `append` call or simply `+`:
 
 ```kotlin
-+ "arbitrary sql here"
++ "custom sql here"
 ```
+
+## Adding native support for new syntax
+
+It is pretty easy to extend the framework to support custom native SQL commands. There are two steps to it:
+
+1. Extend the `Expr` class
+2. Define a function to create the Expr class
+
+Take a look in [expression.kt](https://github.com/edvin/kdbc/blob/master/src/main/kotlin/kdbc/expression.kt) to see how the existing expressions are implemented.
+
+Pull requests for native functions for all popular databases are welcome!
+
+
+
