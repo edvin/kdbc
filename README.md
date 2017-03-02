@@ -253,6 +253,57 @@ CUSTOMER().create()
 A `DataSource` is generated and configured as the default data source via `KDBC.setDataSource()`. Then
 we call `CUSTOMER().create()`, which generates the DDL and executes it to construct our table.
 
+## Connection handling
+
+For simple use against a single database, calling `KDBC.setDataSource` might be fine. There are more advanced strategies for choosing the connection
+on a per query basis as well.
+
+### Query.connection()
+
+Every `Query` instance has a setter called `connection(connection)` which will configure the connection to be used for the query.
+
+```kotlin
+InsertCustomer(customer).connection(connection).execute()
+```
+> Specify connection explicitly per query
+
+`Query` also takes an optional connection parameter in its constructor as an alternative:
+
+```kotlin
+InsertCustomer(connection, customer).execute()
+```
+> Connection specified in query constructor
+
+### Connection factory
+
+The connection factory is in charge of supplying a connection to any Query that hasn't been assigned a connection as execution time.
+`KDBC.setDataSource()` actually calls `KDBC.setConnectionFactory` under the covers. It's implementation is simple:
+
+```kotlin
+fun setDataSource(dataSource: DataSource) {
+    setConnectionFactory { dataSource.connection }
+}
+```
+
+The function passed to `setConnectionFactory` receives the query as it's single argument and is required to return a connection. The
+following implementation inspects an annotation set on each query and assigns a connection based on that:
+
+```kotlin
+@Target(AnnotationTarget.CLASS)
+annotation class Database(val pool: String)
+
+KDBC.setConnectionFactory { query ->
+    val db = query.javaClass.getAnnotation(Database::class.java)
+    when (db.pool) {
+        "pool1" -> pool1.connection
+        "pool2" -> pool2.connection
+        else -> throw IllegalArgumentException("Don't know how to create connection for pool ${db.pool}")
+    }
+}
+```
+
+This is merely a suggestion and you can use whatever strategy you like, for example by inspecting the package the Query is in or even the presence of an interface etc.
+
 ## Transactions
 
 If the current connection has `autoCommit = true`, each query will be committed upon completion. This is the default for a manually created
