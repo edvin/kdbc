@@ -24,11 +24,10 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
     }
 
     /**
-     * Convert a result row into the query result object. Instead of extracting
-     * data from the supplied ResultSet you should extract the data from
+     * Convert a result row into the query result object. Extract the data from
      * the Table instances you used to construct the query.
      */
-    open fun get(): T = get()
+    open fun get(): T = mapper()
 
     fun mapper(mapper: () -> T) {
         this.mapper = mapper
