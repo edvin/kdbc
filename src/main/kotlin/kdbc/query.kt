@@ -29,7 +29,7 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
      */
     open fun get(): T = mapper()
 
-    fun mapper(mapper: () -> T) {
+    fun map(mapper: () -> T) {
         this.mapper = mapper
     }
 
