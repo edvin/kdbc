@@ -278,3 +278,9 @@ fun <Q : Query<*>> Q.autoclose(autoclose: Boolean): Q {
 data class ExecutionResult<T>(val query: Query<T>, val hasResultSet: Boolean, val updates: List<Long>) {
     val updatedRows: Long get() = updates.sum()
 }
+
+inline fun <DomainType> query(connection: Connection? = null, autoclose: Boolean = true, crossinline op: Query<DomainType>.() -> Unit) = object : Query<DomainType>(connection, autoclose) {
+    init {
+        op(this)
+    }
+}
