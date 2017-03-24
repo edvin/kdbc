@@ -7,6 +7,37 @@ KDBC provides type safe SQL queries for Kotlin. Features:
 - Explicit, but convenient O/R mapping
 - Optional DDL generation
 
+
+Until this is released on Maven Central, you can use JitPack to build a snapshot as a dependency using Gradle or Maven:
+
+**Gradle**
+
+```groovy
+repositories {
+     maven { url 'https://jitpack.io' }
+}
+dependencies {
+    compile 'com.github.edvin:kdbc:master-SNAPSHOT'
+}  
+```
+
+**Maven**
+
+```groovy 
+<repositories>
+    <repository>
+        <id>jitpack.io</id>
+        <url>https://jitpack.io</url>
+    </repository>
+</repositories>
+
+<dependency>
+    <groupId>com.github.edvin</groupId>
+    <artifactId>kdbc</artifactId>
+    <version>master-SNAPSHOT</version>
+</dependency>
+```
+
 To query or update a table you need a `Table` object that represents the database table.
 
 ```kotlin
