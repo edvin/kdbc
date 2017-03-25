@@ -1,5 +1,6 @@
 package kdbc
 
+import java.io.Closeable
 import java.io.InputStream
 import java.math.BigDecimal
 import java.sql.Connection
@@ -12,7 +13,7 @@ import java.time.LocalTime
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 
-abstract class Query<T>(var connection: Connection? = null, var autoclose: Boolean = true, op: (Query<T>.() -> Unit)? = null) : Expr(null) {
+abstract class Query<T>(var connection: Connection? = null, var autoclose: Boolean = true, op: (Query<T>.() -> Unit)? = null) : Expr(null), Closeable {
     private var withGeneratedKeys: (ResultSet.(Int) -> Unit)? = null
     val tables = mutableListOf<Table>()
     lateinit var stmt: PreparedStatement
@@ -133,7 +134,11 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
      * participate in a transaction.
      */
     private fun checkClose() {
-        if (!vetoclose && !ConnectionFactory.isTransactionActive && autoclose) logErrors("Closing connection") { connection!!.close() }
+        if (!vetoclose && !ConnectionFactory.isTransactionActive && autoclose) close()
+    }
+
+    override fun close() {
+        logErrors("Closing connection") { connection!!.close() }
     }
 
     val resultSet: ResultSet get() = stmt.resultSet!!
