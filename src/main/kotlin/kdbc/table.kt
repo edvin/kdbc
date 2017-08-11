@@ -20,7 +20,7 @@ abstract class Table(private val name: String? = null) : ColumnOrTable {
             rs ?: throw SQLException("ResultSet was not configured when column value was requested")
         }
 
-        columns.add(column)
+        columns += column
         return column
     }
 
