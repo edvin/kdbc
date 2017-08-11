@@ -7,7 +7,10 @@ import java.time.LocalDateTime
 import java.util.*
 import kotlin.reflect.KClass
 
+@Suppress("UNCHECKED_CAST")
 abstract class Table(private val name: String? = null) : ColumnOrTable {
+    abstract val columns: List<Column<*>>
+
     var tableAlias: String? = null
     var rs: ResultSet? = null
     val tableName: String get() = name ?: javaClass.simpleName.toLowerCase()
@@ -30,12 +33,6 @@ abstract class Table(private val name: String? = null) : ColumnOrTable {
     }
 
     override fun toString() = if (tableAlias.isNullOrBlank() || tableAlias == tableName) tableName else "$tableName $tableAlias"
-    val columns: List<Column<*>> get() = javaClass.declaredMethods
-            .filter { Column::class.java.isAssignableFrom(it.returnType) }
-            .map {
-                it.isAccessible = true
-                it.invoke(this) as Column<*>
-            }
 
     // Generate DDL for this table. All columns that have a DDL statement will be included.
     fun ddl(dropIfExists: Boolean): String {
