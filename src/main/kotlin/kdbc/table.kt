@@ -43,25 +43,30 @@ abstract class Table(private val name: String? = null) : ColumnOrTable {
     override fun toString() = if (tableAlias.isNullOrBlank() || tableAlias == tableName) tableName else "$tableName $tableAlias"
 
     // Generate DDL for this table. All columns that have a DDL statement will be included.
-    fun ddl(dropIfExists: Boolean): String {
-        val s = StringBuilder()
-        if (dropIfExists) s.append("DROP TABLE IF EXISTS $tableName;\n")
-        s.append("CREATE TABLE $tableName (\n")
-        val ddls = columns.filter { it.ddl != null }.iterator()
-        while (ddls.hasNext()) {
-            val c = ddls.next()
-            s.append("\t").append(c.name).append(" ").append(c.ddl)
-            if (ddls.hasNext()) s.append(",\n")
-        }
-        s.append(")")
-        return s.toString()
+    internal fun ddl(skipIfExists: Boolean, dropIfExists: Boolean): String {
+        return with (StringBuilder())
+        {
+            if (dropIfExists) append("DROP TABLE IF EXISTS $tableName;\n")
+
+            if (skipIfExists) append("CREATE TABLE IF NOT EXISTS $tableName (\n")
+            else append("CREATE TABLE $tableName (\n")
+
+            val ddls = columns.filter { it.ddl != null }.iterator()
+            while (ddls.hasNext()) {
+                val c = ddls.next()
+                append("\t").append(c.name).append(" ").append(c.ddl)
+                if (ddls.hasNext()) append(",\n")
+            }
+
+            append(")")
+        }.toString()
     }
 
     // Execute create table statement. Creates a query to be able to borrow a connection from the data source factory.
-    fun create(connection: Connection? = null, dropIfExists: Boolean = false) {
+    fun create(connection: Connection? = null, skipIfExists: Boolean = false, dropIfExists: Boolean = false) {
         object : Query<Void>(connection) {
             init {
-                add(StringExpr(ddl(dropIfExists), this))
+                add(StringExpr(ddl(skipIfExists, dropIfExists), this))
                 execute()
             }
         }

@@ -64,6 +64,6 @@ class ConnectionFactory {
     }
 }
 
-fun <T : Table> Connection.createTable(tableClass: KClass<T>, dropIfExists: Boolean = false) =
-        execute(tableClass.java.newInstance().ddl(dropIfExists))
+fun <T : Table> Connection.createTable(tableClass: KClass<T>, skipIfExists: Boolean = false, dropIfExists: Boolean = false) =
+        execute(tableClass.java.newInstance().ddl(skipIfExists, dropIfExists))
 
