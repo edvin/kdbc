@@ -38,8 +38,7 @@ class SelectFirstCustomerByName : Query<Customer>() {
     init {
         select(c)
         from(c)
-        orderBy(c.name).desc()
-        limit(1)
+        + "ORDER BY ${c.name} DESC LIMIT 1"
     }
 }
 
