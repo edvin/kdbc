@@ -1,6 +1,7 @@
 package kdbc
 
 import java.math.BigDecimal
+import java.sql.Connection
 import java.sql.ResultSet
 import java.sql.SQLException
 import java.time.LocalDate
@@ -57,8 +58,8 @@ abstract class Table(private val name: String? = null) : ColumnOrTable {
     }
 
     // Execute create table statement. Creates a query to be able to borrow a connection from the data source factory.
-    fun create(dropIfExists: Boolean = false) {
-        object : Query<Void>() {
+    fun create(connection: Connection? = null, dropIfExists: Boolean = false) {
+        object : Query<Void>(connection) {
             init {
                 add(StringExpr(ddl(dropIfExists), this))
                 execute()
