@@ -94,6 +94,10 @@ abstract class Expr(val parent: Expr?) {
     fun delete(table: Table, op: (DeleteExpr.() -> Unit)? = null) =
             add(DeleteExpr(table, this), op)
 
+    fun orderBy(col: Column<*>, order: OrderByExpr.Order = OrderByExpr.Order.ASC) = add(OrderByExpr(col, order, this))
+
+    infix fun limit(limit: Int) = add(LimitExpr(limit, this))
+
     fun from(vararg tables: Table, op: (FromExpr.() -> Unit)? = null) =
             add(FromExpr(tables.toList(), this), op)
 
@@ -152,6 +156,31 @@ class ComparisonExpr(val column: Any?, val sign: String, val value: Any?, parent
         if (value is Column<*>) s.append(spacer).append(value.fullName)
         else s.append(spacer).append("?")
         if (transform != null) s.append(")")
+    }
+}
+
+
+class OrderByExpr(val col: Column<*>, var order: OrderByExpr.Order = OrderByExpr.Order.ASC, parent: Expr) : Expr(parent) {
+    enum class Order { ASC, DESC }
+
+    override fun render(s: StringBuilder) {
+        s.append("\nORDER BY ${col.asAlias} $order")
+    }
+
+    fun desc(): OrderByExpr {
+        order = Order.DESC
+        return this
+    }
+
+    fun asc(): OrderByExpr {
+        order = Order.ASC
+        return this
+    }
+}
+
+class LimitExpr(val limit: Int, parent: Expr) : Expr(parent) {
+    override fun render(s: StringBuilder) {
+        s.append("\nLIMIT $limit")
     }
 }
 

@@ -3,7 +3,6 @@ package no.tornado.kdbc.tests
 import kdbc.Insert
 import kdbc.Query
 import kdbc.Update
-import kdbc.alias
 import no.tornado.kdbc.tests.models.Customer
 import no.tornado.kdbc.tests.tables.CUSTOMER
 
@@ -31,6 +30,21 @@ class InsertCustomersInBatch(customers: List<Customer>) : Insert() {
             }
         }
     }
+}
+
+class SelectFirstCustomerByName : Query<Customer>() {
+    val c = CUSTOMER()
+
+    init {
+        select(c)
+        from(c)
+        orderBy(c.name).desc()
+        limit(1)
+    }
+}
+
+fun main(args: Array<String>) {
+    println(SelectFirstCustomerByName().render())
 }
 
 class SelectCustomer : Query<Customer>() {
