@@ -1,6 +1,7 @@
 package kdbc
 
 import java.math.BigDecimal
+import java.sql.Connection
 import java.sql.ResultSet
 import java.sql.SQLException
 import java.time.LocalDate
@@ -16,7 +17,7 @@ abstract class Table(private val name: String? = null) : ColumnOrTable {
     val tableName: String get() = name ?: javaClass.simpleName.toLowerCase()
 
     inline protected fun <reified T : Any> column(name: String, ddl: String? = null, noinline getter: (ResultSet.(String) -> T)? = null): Column<T> {
-        val column = Column(this, name, ddl, getter ?: DefaultGetter<T>()) {
+        val column = Column(this, name, ddl, getter ?: defaultGetter<T>()) {
             rs ?: throw SQLException("ResultSet was not configured when column value was requested")
         }
 
@@ -24,7 +25,7 @@ abstract class Table(private val name: String? = null) : ColumnOrTable {
         return column
     }
 
-    inline fun <reified T : Any> DefaultGetter(): ResultSet.(String) -> T = {
+    inline protected fun <reified T : Any> defaultGetter(): ResultSet.(String) -> T = {
         when (T::class.javaPrimitiveType ?: T::class) {
             Int::class.javaPrimitiveType -> getInt(it) as T
             Long::class.javaPrimitiveType -> getLong(it) as T
@@ -57,8 +58,8 @@ abstract class Table(private val name: String? = null) : ColumnOrTable {
     }
 
     // Execute create table statement. Creates a query to be able to borrow a connection from the data source factory.
-    fun create(dropIfExists: Boolean = false) {
-        object : Query<Void>() {
+    fun create(connection: Connection? = null, dropIfExists: Boolean = false) {
+        object : Query<Void>(connection) {
             init {
                 add(StringExpr(ddl(dropIfExists), this))
                 execute()
