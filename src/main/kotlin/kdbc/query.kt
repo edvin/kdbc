@@ -12,6 +12,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.logging.Level
 
 abstract class Query<T>(var connection: Connection? = null, var autoclose: Boolean = true, op: (Query<T>.() -> Unit)? = null) : Expr(null), Closeable {
     private var withGeneratedKeys: (ResultSet.(Int) -> Unit)? = null
@@ -174,7 +175,10 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
                 while (iterator.hasNext()) {
                     batch.op(batch, iterator.next())
                     if (first) {
-                        stmt = connection!!.prepareStatement(render(), keyStrategy)
+                        stmt = render().let {
+                            if (KDBC.debug) logger.log(Level.INFO, it)
+                            connection!!.prepareStatement(it, keyStrategy)
+                        }
                         first = false
                     }
                     applyParameters()
@@ -188,7 +192,10 @@ abstract class Query<T>(var connection: Connection? = null, var autoclose: Boole
                 if (wasAutoCommit) connection!!.autoCommit = true
                 return ExecutionResult(this, false, updates)
             } else {
-                stmt = connection!!.prepareStatement(render(), keyStrategy)
+                stmt = render().let {
+                    if (KDBC.debug) logger.log(Level.INFO, it)
+                    connection!!.prepareStatement(it, keyStrategy)
+                }
                 applyParameters()
                 hasResultSet = stmt.execute()
                 handleGeneratedKeys()

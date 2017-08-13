@@ -8,6 +8,7 @@ import javax.sql.DataSource
 class KDBC {
     companion object {
         val connectionFactory = ConnectionFactory()
+        var debug: Boolean = false
 
         fun setConnectionFactory(factoryFn: (Query<*>) -> Connection) {
             connectionFactory.factoryFn = factoryFn
