@@ -40,12 +40,13 @@ class QueryTests {
     @Test
     fun insertTest() {
         val newCustomer = Customer(name = "Jane")
-
         InsertCustomer(newCustomer).execute()
 
-        val fromDatabase = SelectCustomer().byId(newCustomer.id!!)
+        val fromDatabase = SelectCustomer().byId(newCustomer.id!!)!!
 
-        assertEquals("Customer(id=${newCustomer.id}, name=Jane)", fromDatabase.toString())
+        assertEquals(newCustomer.id, fromDatabase.id)
+        assertEquals(newCustomer.name, fromDatabase.name)
+        assertEquals(newCustomer.uuid, fromDatabase.uuid)
     }
 
     @Test

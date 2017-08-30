@@ -12,6 +12,7 @@ class InsertCustomer(customer: Customer) : Insert() {
     init {
         insert(c) {
             c.name `=` customer.name
+            c.uuid `=` customer.uuid
         }
         generatedKeys {
             customer.id = getInt(1)
@@ -27,6 +28,7 @@ class InsertCustomersInBatch(customers: List<Customer>) : Insert() {
         batch(customers) { customer ->
             insert(c) {
                 c.name `=` customer.name
+                c.uuid `=` customer.uuid
             }
         }
     }

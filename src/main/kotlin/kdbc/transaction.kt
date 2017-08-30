@@ -6,7 +6,7 @@ import java.util.*
 enum class TransactionType { REQUIRED, REQUIRES_NEW }
 
 internal class TransactionContext(val type: TransactionType) {
-    val id = UUID.randomUUID()
+    val id: UUID = UUID.randomUUID()
     private val childContexts = mutableListOf<TransactionContext>()
     internal var connection: Connection? = null
 
