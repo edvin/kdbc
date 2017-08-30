@@ -6,6 +6,7 @@ import java.sql.ResultSet
 import java.sql.SQLException
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.util.*
 
 @Suppress("UNCHECKED_CAST")
@@ -17,7 +18,7 @@ abstract class Table(private val name: String? = null) : ColumnOrTable {
     val tableName: String get() = name ?: javaClass.simpleName.toLowerCase()
 
     inline protected fun <reified T : Any> column(name: String, ddl: String? = null, noinline getter: (ResultSet.(String) -> T)? = null): Column<T> {
-        val column = Column(this, name, ddl, getter ?: defaultGetter<T>()) {
+        val column = Column(this, name, ddl, getter ?: defaultGetter()) {
             rs ?: throw SQLException("ResultSet was not configured when column value was requested")
         }
 
@@ -25,17 +26,20 @@ abstract class Table(private val name: String? = null) : ColumnOrTable {
         return column
     }
 
-    inline protected fun <reified T : Any> defaultGetter(): ResultSet.(String) -> T = {
+    inline protected fun <reified T : Any> defaultGetter(): ResultSet.(String) -> T? = {
         when (T::class.javaPrimitiveType ?: T::class) {
-            Int::class.javaPrimitiveType -> getInt(it) as T
-            Long::class.javaPrimitiveType -> getLong(it) as T
-            Float::class.javaPrimitiveType -> getFloat(it) as T
-            Double::class.javaPrimitiveType -> getDouble(it) as T
-            String::class -> getString(it) as T
-            BigDecimal::class -> getBigDecimal(it) as T
-            Date::class -> getDate(it) as T
-            LocalDate::class -> getDate(it)?.toLocalDate() as T
-            LocalDateTime::class -> getTimestamp(it)?.toLocalDateTime() as T
+            UUID::class -> getUUID(it) as? T
+            Int::class.javaPrimitiveType -> getInt(it) as? T
+            Long::class.javaPrimitiveType -> getLong(it) as? T
+            Float::class.javaPrimitiveType -> getFloat(it) as? T
+            Double::class.javaPrimitiveType -> getDouble(it) as? T
+            String::class -> getString(it) as? T
+            Boolean::class -> getBoolean(it) as? T
+            BigDecimal::class -> getBigDecimal(it) as? T
+            Date::class -> getDate(it) as? T
+            LocalTime::class -> getLocalTime(it) as? T
+            LocalDate::class -> getLocalDate(it) as? T
+            LocalDateTime::class -> getLocalDateTime(it) as? T
             else -> throw IllegalArgumentException("Default Column Getter cannot handle ${T::class} - supply a custom getter for this column")
         }
     }
