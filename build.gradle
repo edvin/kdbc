@@ -1,5 +1,5 @@
 group 'no.tornado'
-version '1.0-SNAPSHOT'
+version '1.0.0-SNAPSHOT'
 description 'Simple, lightweight and elegant DSL for SQL Queries in Kotlin'
 
 buildscript {
@@ -26,10 +26,7 @@ repositories {
 }
 
 dependencies {
-    testCompile 'junit:junit:4.+', 'com.h2database:h2:1.4.192'
-    compile 'com.zaxxer:HikariCP:2.6.0'
-    compile 'org.xerial:sqlite-jdbc:3.16.1'
-    compile 'io.reactivex.rxjava2:rxjava:2.0.6'
+    testCompile 'junit:junit:4.12', 'com.h2database:h2:1.4.192'
     compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     compile "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version"
 }
