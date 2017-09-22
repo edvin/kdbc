@@ -8,3 +8,6 @@ build/
 kdbc\.iml
 
 out/
+
+# Maven
+target
