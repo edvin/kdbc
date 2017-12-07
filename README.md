@@ -45,10 +45,10 @@ To query or update a table you need a `Table` object that represents the databas
 
 ```kotlin
 class CUSTOMER : Table() {
-    val id by column<Int>()
-    val name by column<String>()
-    val zip by column<String>()
-    val city by column<String>()
+    val id = column<Int>("id)
+    val name = column<String>("name)
+    val zip = column<String>("zip)
+    val city = column<String>("city")
 }
 ```
 
@@ -144,9 +144,9 @@ Let's do a join! We'll introduce a `STATE` table and `State` domain object:
 
 ```kotlin
 class STATE : Table() {
-    val id by column<UUID>()
-    val code by column<String>()
-    val name by column<String>()
+    val id = column<UUID>("id)
+    val code = column<String>("code")
+    val name = column<String>("name)
 }
 
 data class State(
@@ -168,11 +168,11 @@ data class Customer(
 )
 
 class CUSTOMER : Table() {
-    val id by column<Int>()
-    val name by column<String>()
-    val zip by column<String>()
-    val city by column<String>()
-    val state by column<UUID>()
+    val id = column<Int>("id")
+    val name = column<String>("name")
+    val zip = column<String>("zip")
+    val city = column<String>("city")
+    val state = column<UUID>("state")
 }
 ```
 
@@ -218,18 +218,8 @@ Let's revisit the first column we made, the `ID` property of our `CUSTOMER` tabl
 
 ```kotlin
 class CUSTOMER : Table() {
-    val id by column<Int>()
+    val id = column<Int>("id")
 }
-```
-
-We have seen that the `Table` objects can retrieve values from our `ResultSet`, but how exactly does it work?
-
-The `column()` delegate function above can take an optional `getter` function that tells KDBC how to extract
-the column value for a given `ResultSet` object. The `getter` function operates on a `ResultSet` and is passed
-the column name. Therefore, the `ID` column could also have been constructed like this:
-
-```kotlin
-val id by column { getString(it) }
 ```
 
 `getString()` operates on a `ResultSet` and `it` represents the column name.
@@ -269,8 +259,8 @@ The following example is taken from the test suite of KDBC:
 
 ```kotlin
 class CUSTOMER : Table() {
-    val id by column<Int>("integer not null primary key auto_increment")
-    val name by column<String>("text")
+    val id = column<Int>("id", "integer not null primary key auto_increment")
+    val name = column<String>("name", "text")
 }
 ```
 > Customer definition with DDL
